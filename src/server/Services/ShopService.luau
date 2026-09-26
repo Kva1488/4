@@ -144,7 +144,7 @@ function ShopService:Start()
 		task.wait(Config.Rewards.PlaytimeInterval)
 		for _, player in Players:GetPlayers() do
 			DataService:Update(player, function(d)
-				d.Coins += Config.Rewards.Playtime
+				d.Coins += Config.Rewards.Playtime * DataService:CoinMultiplier(player)
 			end)
 		end
 	end

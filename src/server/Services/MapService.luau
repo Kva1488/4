@@ -1,19 +1,21 @@
 --!strict
--- Строит карту в стиле Титана: рельеф из Terrain, кольцо гор по краю, центральная арена
--- с колоннами камней, руины, парящие скалы, светящиеся кристаллы и дорожки к каждому камню.
+-- Строит большую карту (1800×1800): рельеф из Terrain, кольцо гор на горизонте, центральная арена
+-- с колоннами камней, шесть биомов по фильмам (World/BiomeBuilder), дорожки к каждому биому,
+-- а в диких землях между ними — руины, парящие скалы и светящиеся кристаллы.
 -- Раскладка детерминирована (Random с фиксированным seed), поэтому карта одинакова в каждой игре.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Biomes = require(ReplicatedStorage.Shared.Biomes)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Places = require(ReplicatedStorage.Shared.Places)
 
-local StoneService = require(script.Parent.StoneService)
+local BiomeBuilder = require(script.Parent.Parent.World.BiomeBuilder)
 
 local MapService = {}
 
 local SEED = 1488
-local WORLD_HALF = 300 -- невидимые стены по краю
+local WORLD_HALF = Biomes.WorldHalf -- невидимые стены по краю
 local ARENA_RADIUS = 30
 
 local rng = Random.new(SEED)
@@ -81,11 +83,17 @@ local function isFree(position: Vector3, clearance: number): boolean
 	if distanceToSegment(position, Vector3.zero, Places.BossCenter) < 6 + clearance then
 		return false -- пурпурная дорожка к разлому
 	end
-	for _, location in StoneService.Locations do
-		if (position - location).Magnitude < 38 + clearance then
+	for _, waystone in Biomes.Waystones do
+		if (flat - waystone.position).Magnitude < 12 + clearance then
 			return false
 		end
-		if distanceToSegment(position, Vector3.zero, location) < 6 + clearance then
+	end
+	-- Биомы застраивает BiomeBuilder, а к ним ведут дорожки.
+	for _, biome in Biomes.List do
+		if (flat - biome.center).Magnitude < biome.radius + 10 + clearance then
+			return false
+		end
+		if distanceToSegment(position, Vector3.zero, biome.center) < 6 + clearance then
 			return false
 		end
 	end
@@ -103,14 +111,6 @@ local function freeSpot(minR: number, maxR: number, clearance: number): Vector3?
 	return nil
 end
 
--- Направление на разлом Дормамму: там в кольце гор проход, чтобы горы не засыпали логово.
-local BOSS_ANGLE = math.atan2(Places.BossCenter.Z, Places.BossCenter.X)
-
-local function nearBossAngle(angle: number, width: number): boolean
-	local delta = (angle - BOSS_ANGLE + math.pi) % (math.pi * 2) - math.pi
-	return math.abs(delta) < width
-end
-
 local function buildTerrain()
 	local terrain = workspace.Terrain
 	terrain:SetMaterialColor(Enum.Material.Ground, PALETTE.Ground)
@@ -118,47 +118,60 @@ local function buildTerrain()
 	terrain:SetMaterialColor(Enum.Material.Basalt, PALETTE.Basalt)
 	terrain:SetMaterialColor(Enum.Material.CrackedLava, PALETTE.CrackedLava)
 
-	-- Основание: поверхность ровно на y = 0.
-	terrain:FillBlock(
-		CFrame.new(0, -12, 0),
-		Vector3.new(WORLD_HALF * 2 + 200, 24, WORLD_HALF * 2 + 200),
-		Enum.Material.Ground
-	)
+	-- Основание: поверхность ровно на y = 0. Заливаем квадратами, чтобы не упереться в лимит области.
+	local tile = 400
+	local extent = WORLD_HALF + 200
+	for x = -extent, extent - 1, tile do
+		for z = -extent, extent - 1, tile do
+			terrain:FillBlock(
+				CFrame.new(x + tile / 2, -12, z + tile / 2),
+				Vector3.new(tile, 24, tile),
+				Enum.Material.Ground
+			)
+		end
+	end
 
 	-- Пятна базальта и светящейся лавы.
-	for _ = 1, 70 do
+	for _ = 1, 220 do
 		local spot = polar(randomAngle(), rng:NextNumber(ARENA_RADIUS + 8, WORLD_HALF - 20), -1)
+		if Biomes.at(spot) then
+			continue
+		end
 		local material = if rng:NextNumber() < 0.3 then Enum.Material.CrackedLava else Enum.Material.Basalt
 		terrain:FillCylinder(CFrame.new(spot), 2, rng:NextNumber(5, 16), material)
 	end
 
-	-- Кольцо гор по краю карты.
-	local mountains = 30
+	-- Кольцо гор на горизонте, за невидимыми стенами.
+	local mountains = 44
 	for i = 1, mountains do
-		local angle = (i / mountains) * math.pi * 2 + rng:NextNumber(-0.08, 0.08)
-		local distance = rng:NextNumber(330, 370)
-		local radius = rng:NextNumber(55, 90)
-		if not nearBossAngle(angle, math.rad(26)) then
-			terrain:FillBall(polar(angle, distance, -radius * 0.25), radius, Enum.Material.Rock)
-			terrain:FillBall(polar(angle, distance + 20, radius * 0.35), radius * 0.6, Enum.Material.Basalt)
-		end
+		local angle = (i / mountains) * math.pi * 2 + rng:NextNumber(-0.05, 0.05)
+		local distance = rng:NextNumber(980, 1060)
+		local radius = rng:NextNumber(80, 130)
+		terrain:FillBall(polar(angle, distance, -radius * 0.25), radius, Enum.Material.Rock)
+		terrain:FillBall(polar(angle, distance + 30, radius * 0.35), radius * 0.6, Enum.Material.Basalt)
 	end
 
 	-- Скальные шпили перед горами.
-	for _ = 1, 16 do
+	for _ = 1, 36 do
 		local angle = randomAngle()
-		local height = rng:NextNumber(50, 120)
-		local base = polar(angle, rng:NextNumber(262, 295))
+		local height = rng:NextNumber(70, 170)
+		local base = polar(angle, rng:NextNumber(860, 930))
 		local tilt = CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15))
-		if nearBossAngle(angle, math.rad(25)) then
-			continue
-		end
 		terrain:FillCylinder(
 			CFrame.new(base + Vector3.new(0, height / 2 - 4, 0)) * tilt,
 			height,
-			rng:NextNumber(6, 12),
+			rng:NextNumber(8, 16),
 			Enum.Material.Rock
 		)
+	end
+
+	-- Холмы в диких землях, чтобы равнина не была плоской.
+	for _ = 1, 40 do
+		local spot = freeSpot(120, WORLD_HALF - 60, 30)
+		if spot then
+			local radius = rng:NextNumber(30, 60)
+			terrain:FillBall(spot - Vector3.new(0, radius * 0.75, 0), radius, Enum.Material.Ground)
+		end
 	end
 
 	local clouds = terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds")
@@ -277,14 +290,14 @@ local function buildArena()
 	end
 end
 
--- Светящиеся плитки от арены к каждому месту с камнем.
+-- Светящиеся плитки от центральной арены к каждому биому (цвета его камня).
 local function buildPaths()
-	for stoneId, location in StoneService.Locations do
-		local stone = Items.StoneById[stoneId]
-		local flat = location * Vector3.new(1, 0, 1)
+	for _, biome in Biomes.List do
+		local stone = Items.StoneById[biome.stoneId]
+		local flat = biome.center * Vector3.new(1, 0, 1)
 		local direction = flat.Unit
 		local startDistance = ARENA_RADIUS + 4
-		local endDistance = flat.Magnitude - 16
+		local endDistance = flat.Magnitude - biome.radius + 30
 		local distance = startDistance
 		while distance < endDistance do
 			local position = direction * distance + Vector3.new(0, 0.05, 0)
@@ -296,14 +309,14 @@ local function buildPaths()
 				Color = stone.color,
 				Transparency = 0.35,
 			}))
-			distance += 7
+			distance += 8
 		end
 	end
 end
 
 local function buildRuins()
-	for _ = 1, 40 do
-		local spot = freeSpot(55, 250, 4)
+	for _ = 1, 150 do
+		local spot = freeSpot(55, WORLD_HALF - 40, 4)
 		if spot then
 			local height = rng:NextNumber(6, 22)
 			local radius = rng:NextNumber(1.5, 2.6)
@@ -340,8 +353,8 @@ local function buildRuins()
 end
 
 local function buildFloatingRocks()
-	for _ = 1, 28 do
-		local spot = freeSpot(60, 270, 0)
+	for _ = 1, 90 do
+		local spot = freeSpot(60, WORLD_HALF - 30, 0)
 		if spot then
 			local size = rng:NextNumber(4, 14)
 			local position = spot + Vector3.new(0, rng:NextNumber(30, 90), 0)
@@ -368,8 +381,8 @@ local function buildFloatingRocks()
 end
 
 local function buildCrystals()
-	for _ = 1, 24 do
-		local spot = freeSpot(45, 260, 3)
+	for _ = 1, 90 do
+		local spot = freeSpot(45, WORLD_HALF - 30, 3)
 		if spot then
 			local stone = Items.Stones[rng:NextInteger(1, #Items.Stones)]
 			local cluster = Instance.new("Model")
@@ -407,6 +420,7 @@ function MapService:Init()
 	folder.Parent = workspace
 
 	buildTerrain()
+	BiomeBuilder.build(folder, SEED)
 	buildBoundary()
 	buildArena()
 	buildPaths()

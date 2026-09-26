@@ -1,29 +1,26 @@
 --!strict
--- Строит на карте места с Камнями Бесконечности (башни, паркур, лабиринт) и выдаёт камни игрокам.
+-- Строит в каждом биоме испытание с Камнем Бесконечности (башня, паркур, лабиринт, холм)
+-- и выдаёт камни игрокам (в том числе купленные за робуксы — через GiveStone).
 -- Камень остаётся на месте для всех: каждый игрок собирает свою коллекцию.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Biomes = require(ReplicatedStorage.Shared.Biomes)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local Fx = require(script.Parent.Parent.Combat.Fx)
+local BiomeBuilder = require(script.Parent.Parent.World.BiomeBuilder)
 local DataService = require(script.Parent.DataService)
 
 local StoneService = {}
 
--- Где на земле стоит каждое место с камнем (MapService строит к ним светящиеся дорожки).
-StoneService.Locations = (
-	{
-		Power = Vector3.new(70, 0, 70),
-		Space = Vector3.new(-90, 0, 50),
-		Reality = Vector3.new(0, 0, -130),
-		Soul = Vector3.new(-160, 0, -160),
-		Time = Vector3.new(150, 0, -70),
-		Mind = Vector3.new(130, 0, 150),
-	}
-) :: { [string]: Vector3 }
+-- Где стоит каждое место с камнем: центр его биома (Shared/Biomes).
+StoneService.Locations = {} :: { [string]: Vector3 }
+for _, biome in Biomes.List do
+	StoneService.Locations[biome.stoneId] = biome.center
+end
 
 local notify: RemoteEvent
 local stoneCollected: RemoteEvent
@@ -168,9 +165,10 @@ function StoneService:GiveStone(player: Player, stoneId: string)
 		notify:FireClient(player, `{stone.name} уже в твоей Перчатке`, stone.color)
 		return
 	end
+	local reward = Config.Rewards.StoneFirstPickup * DataService:CoinMultiplier(player)
 	DataService:Update(player, function(d)
 		d.Stones[stoneId] = true
-		d.Coins += Config.Rewards.StoneFirstPickup
+		d.Coins += reward
 	end)
 
 	local character = player.Character
@@ -187,7 +185,7 @@ function StoneService:GiveStone(player: Player, stoneId: string)
 	stoneCollected:FireClient(player, stoneId, count)
 	notify:FireClient(
 		player,
-		`{stone.name} получен! ({count}/{#Items.Stones}) +{Config.Rewards.StoneFirstPickup} 🪙`,
+		`{stone.name} получен! ({count}/{#Items.Stones}) +{reward} 🪙`,
 		stone.color
 	)
 	if count == #Items.Stones then
@@ -209,14 +207,14 @@ function StoneService:Start()
 	mapFolder.Name = "StoneLocations"
 	mapFolder.Parent = workspace
 
-	local at = StoneService.Locations
+	local base = BiomeBuilder.stoneBase
 	local spots: { [string]: Vector3 } = {
-		Power = tower(at.Power, 35, Color3.fromRGB(80, 50, 110)),
-		Space = parkour(at.Space, 9, Items.StoneById.Space.color),
-		Reality = maze(at.Reality, Color3.fromRGB(110, 45, 45)),
-		Soul = tower(at.Soul, 60, Color3.fromRGB(120, 80, 40)),
-		Time = parkour(at.Time, 12, Items.StoneById.Time.color),
-		Mind = at.Mind,
+		Power = tower(base("Power"), 35, Color3.fromRGB(80, 50, 110)), -- храм на острове Мораг
+		Space = parkour(base("Space"), 9, Items.StoneById.Space.color), -- над обсерваторией Асгарда
+		Reality = maze(base("Reality"), Color3.fromRGB(70, 30, 36)), -- лабиринт Свартальфхейма
+		Soul = tower(base("Soul"), 60, Color3.fromRGB(60, 56, 66)), -- утёс Вормира
+		Time = parkour(base("Time"), 12, Items.StoneById.Time.color), -- ступени Камар-Таджа
+		Mind = base("Mind"), -- вершина холма у Водопада Воинов
 	}
 
 	for _, stone in Items.Stones do

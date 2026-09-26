@@ -23,7 +23,15 @@ local notify: RemoteEvent
 local screenFx: RemoteEvent
 
 -- Начислить опыт (дробные значения копятся, в данные попадает целая часть).
-function ProgressionService:AddXp(player: Player, amount: number)
+-- Геймпасс «x2 опыта» ставит игроку атрибут XpMult.
+-- raw = true: без множителя «x2 опыта» (купленные пакеты опыта).
+function ProgressionService:AddXp(player: Player, amount: number, raw: boolean?)
+	if not raw then
+		local mult = player:GetAttribute("XpMult")
+		if type(mult) == "number" and mult > 0 then
+			amount *= mult
+		end
+	end
 	if amount > 0 and amount < math.huge then
 		pending[player] = (pending[player] or 0) + amount
 	end
@@ -47,7 +55,7 @@ local function flush(player: Player)
 		while data.Level < Progression.MaxLevel and data.Xp >= Progression.xpToNext(data.Level) do
 			data.Xp -= Progression.xpToNext(data.Level)
 			data.Level += 1
-			local reward = Progression.levelReward(data.Level)
+			local reward = Progression.levelReward(data.Level) * DataService:CoinMultiplier(player)
 			data.Coins += reward
 			coins += reward
 			table.insert(gainedLevels, data.Level)
@@ -139,15 +147,16 @@ local function claimDaily(player: Player): (boolean, string)
 	end
 	local streak = Progression.nextStreak(data.LastDaily, data.DailyStreak, today)
 	local reward = Progression.Daily[streak]
+	local coins = reward.coins * DataService:CoinMultiplier(player)
 	DataService:Update(player, function(d)
 		d.LastDaily = today
 		d.DailyStreak = streak
 		d.BestStreak = math.max(d.BestStreak, streak)
-		d.Coins += reward.coins
+		d.Coins += coins
 	end)
 	ProgressionService:AddXp(player, reward.xp)
 	task.defer(flush, player)
-	return true, `🎁 День {streak}: +{reward.coins} монет и +{reward.xp} опыта`
+	return true, `🎁 День {streak}: +{coins} монет и +{reward.xp} опыта`
 end
 
 local function equipTitle(player: Player, titleId: unknown): (boolean, string)

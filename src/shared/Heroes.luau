@@ -134,6 +134,11 @@ function Heroes.isUnlocked(hero: Hero, stats: { [string]: any }?): boolean
 	if not unlock then
 		return true
 	end
+	-- Герой куплен за робуксы (геймпасс).
+	local owned = stats and stats.OwnedHeroes
+	if type(owned) == "table" and owned[hero.id] == true then
+		return true
+	end
 	local value = stats and stats[unlock.stat]
 	return type(value) == "number" and value >= unlock.count
 end

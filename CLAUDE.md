@@ -6,9 +6,10 @@
 
 | Папка | Куда попадает в Studio | Что там |
 |---|---|---|
-| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Progression` (уровни, ежедневные награды, титулы), `ArenaModes`, `Places` (логово босса, арена), `DormammuModel` (босс), `Sounds`, `Config`, `Remotes` |
+| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Progression` (уровни, ежедневные награды, титулы), `ArenaModes`, `Places` (логово босса, арена), `DormammuModel` (босс), `Biomes` (биомы и порталы), `Monetization` (геймпассы, ID — здесь), `Sounds`, `Config`, `Remotes` |
 | `src/server/Services/` | `ServerScriptService.Server.Services` | Сервисы, их автоматически загружает `init.server.luau` |
 | `src/server/Combat/` | `ServerScriptService.Server.Combat` | `Heroes/<Герой>` (способности), `AbilityHandlers` (собирает их), `Kit` (общие хелперы), `Damage`, `Status`, `Fx`, `Projectile`, `Timeline`. Загрузчик их не трогает |
+| `src/server/World/` | `ServerScriptService.Server.World` | `BiomeBuilder` строит биомы большой карты. Загрузчик его не трогает, его вызывает `MapService` |
 | `src/client/Controllers/` | `...StarterPlayerScripts.Client.Controllers` | Контроллеры, их автоматически загружает `init.client.luau` |
 | `src/client/` | `...StarterPlayerScripts.Client` | `PlayerState` (копия данных игрока), `Ui` (хелперы интерфейса) |
 
@@ -24,6 +25,8 @@
 
 - `BossService` строит Разлом Тёмного измерения и раз в несколько минут выпускает Дормамму. Модель описана в `DormammuModel` (превью: `lune run tools/export_boss.luau head`). Урон от NPC идёт через `Damage.fromNpc`, а для больших целей есть атрибуты `HitRadius` и `MaxHitDamage`.
 - `ArenaService` ведёт раунды на летающей арене. Игроки там помечены атрибутом `Zone = "Arena"`, и `Damage` не даёт бить через границу зон.
+- Заработанные монеты умножай на `DataService:CoinMultiplier(player)`, чтобы работал геймпасс «x2 монет». Купленные пакеты не умножаются.
+- Покупки за робуксы: товары и их ID лежат в `Shared/Monetization`, выдаёт их `MonetizationService`. Инструкция по публикации — `docs/PUBLISHING.md`.
 - Опыт начисляется только через `ProgressionService:AddXp`. Подписаться на урон и убийства можно через `Damage.onDamaged` / `Damage.onKilled`.
 
 ### Как добавить героя

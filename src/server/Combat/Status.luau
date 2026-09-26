@@ -9,6 +9,8 @@
 
 local Status = {}
 
+local SPRINT_MULT = 1.6
+
 type Kind = "Stun" | "Slow" | "Haste" | "Silence"
 type Effect = { expires: number, mult: number }
 
@@ -42,6 +44,10 @@ local function recompute(humanoid: Humanoid)
 	end
 	if hasted then
 		speedMult *= list.Haste.mult
+	end
+	-- Бег (Shift) не работает в замедлении.
+	if humanoid:GetAttribute("Sprinting") and not slowed then
+		speedMult *= SPRINT_MULT
 	end
 	if stunned then
 		speedMult = 0
@@ -80,6 +86,16 @@ function Status.apply(humanoid: Humanoid, kind: Kind, duration: number, mult: nu
 			recompute(humanoid)
 		end
 	end)
+end
+
+-- Бег по большой карте: включается и выключается клиентом (сервер пересчитывает скорость сам).
+function Status.setSprint(humanoid: Humanoid, on: boolean)
+	if humanoid.Health <= 0 or (humanoid:GetAttribute("Sprinting") == true) == on then
+		return
+	end
+	ensureBase(humanoid)
+	humanoid:SetAttribute("Sprinting", on)
+	recompute(humanoid)
 end
 
 function Status.isStunned(humanoid: Humanoid): boolean

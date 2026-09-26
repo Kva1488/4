@@ -161,7 +161,7 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 		else nil
 	local unlocked: Heroes.Hero? = nil
 	DataService:Update(attacker, function(data)
-		data.Coins += amount
+		data.Coins += amount * DataService:CoinMultiplier(attacker)
 		data.Kills += 1
 		local stats = data :: any
 		-- Что было открыто до этого убийства.

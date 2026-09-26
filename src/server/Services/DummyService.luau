@@ -9,12 +9,12 @@ local RESPAWN_TIME = 5
 local MAX_HEALTH = 150
 
 local SPOTS = {
-	-- За пределами арены (радиус 30), между светящимися дорожками.
+	-- За пределами центральной арены (радиус 30), между дорожками к биомам.
 	Vector3.new(-30, 0, -32),
 	Vector3.new(12, 0, -44),
-	Vector3.new(38, 0, -24),
-	Vector3.new(-44, 0, 8),
-	Vector3.new(44, 0, 22),
+	Vector3.new(30, 0, -40),
+	Vector3.new(-52, 0, -14),
+	Vector3.new(46, 0, 40),
 	Vector3.new(-8, 0, 45),
 }
 

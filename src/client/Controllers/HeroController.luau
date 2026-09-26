@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Abilities = require(ReplicatedStorage.Shared.Abilities)
 local Heroes = require(ReplicatedStorage.Shared.Heroes)
+local Monetization = require(ReplicatedStorage.Shared.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local PlayerState = require(script.Parent.Parent.PlayerState)
@@ -27,6 +28,7 @@ type Card = {
 	button: TextButton,
 	progress: Frame,
 	progressFill: Frame,
+	buyButton: TextButton?,
 }
 
 local HeroController = {}
@@ -35,6 +37,7 @@ local panel: Frame
 local panelScale: UIScale
 local cards: { Card } = {}
 local selectHero: RemoteFunction
+local buyItem: RemoteFunction
 local busy = false
 
 local function render()
@@ -49,6 +52,9 @@ local function render()
 		card.stroke.Color = if selected then hero.color else Ui.Colors.PanelLight
 		card.stroke.Thickness = if selected then 3 else 2
 		card.progress.Visible = not unlocked
+		if card.buyButton then
+			card.buyButton.Visible = not unlocked
+		end
 		if selected then
 			card.button.Text = "ВЫБРАН ✓"
 			card.button.BackgroundColor3 = hero.color
@@ -135,7 +141,7 @@ local function createCard(hero: Heroes.Hero, index: number, parent: Instance): C
 	end
 	local scroll = Ui.create("ScrollingFrame", {
 		Position = UDim2.fromOffset(10, 116),
-		Size = UDim2.new(1, -20, 0, 170),
+		Size = UDim2.new(1, -20, 0, 140),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 3,
@@ -185,7 +191,42 @@ local function createCard(hero: Heroes.Hero, index: number, parent: Instance): C
 		choose(hero)
 	end)
 
-	return { hero = hero, stroke = stroke, button = button, progress = progress, progressFill = progressFill }
+	-- Закрытого героя можно сразу купить за робуксы.
+	local pass = Monetization.PassByHero[hero.id]
+	local buyButton: TextButton? = nil
+	if pass then
+		local buyNow = Ui.create("TextButton", {
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -66),
+			Size = UDim2.new(1, -20, 0, 26),
+			BackgroundColor3 = Color3.fromRGB(0, 170, 90),
+			Text = `💎 Открыть сейчас · R$ {pass.price}`,
+			TextScaled = true,
+			Font = Enum.Font.GothamBlack,
+			TextColor3 = Color3.new(1, 1, 1),
+			Visible = false,
+			Parent = card,
+		}, { Ui.corner(8), Ui.padding(5) })
+		Ui.bounce(buyNow)
+		buyNow.Activated:Connect(function()
+			local ok, success, message = pcall(buyItem.InvokeServer, buyItem, "pass", pass.key)
+			if ok and not success then
+				NotifyController.show(message, Color3.fromRGB(255, 90, 90))
+			elseif ok and message ~= "" then
+				NotifyController.show(message, hero.color)
+			end
+		end)
+		buyButton = buyNow
+	end
+
+	return {
+		hero = hero,
+		stroke = stroke,
+		button = button,
+		progress = progress,
+		progressFill = progressFill,
+		buyButton = buyButton,
+	}
 end
 
 local function setVisible(open: boolean)
@@ -316,6 +357,7 @@ end
 
 function HeroController:Init()
 	selectHero = Remotes.func("SelectHero")
+	buyItem = Remotes.func("BuyItem")
 end
 
 function HeroController:Start()

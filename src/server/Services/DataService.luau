@@ -119,6 +119,29 @@ local function reconcile(raw: any): PlayerData
 	if title and Progression.hasTitle(title, result) then
 		result.EquippedTitle = title.id
 	end
+	if type(raw.OwnedHeroes) == "table" then
+		for id, owned in raw.OwnedHeroes do
+			if Heroes.ById[id] and owned == true then
+				result.OwnedHeroes[id] = true
+			end
+		end
+	end
+	if type(raw.Passes) == "table" then
+		for key, done in raw.Passes do
+			if type(key) == "string" and done == true then
+				result.Passes[key] = true
+			end
+		end
+	end
+	if type(raw.Receipts) == "table" then
+		local kept = 0
+		for id, done in raw.Receipts do
+			if type(id) == "string" and done == true and kept < 200 then
+				result.Receipts[id] = true
+				kept += 1
+			end
+		end
+	end
 	local hero = if type(raw.Hero) == "string" then Heroes.ById[raw.Hero] else nil
 	if hero and Heroes.isUnlocked(hero, result) then
 		result.Hero = hero.id
@@ -184,6 +207,17 @@ local function load(player: Player)
 	end
 	profiles[player] = reconcile(raw)
 	notifyChanged(player, profiles[player])
+end
+
+-- Множитель заработанных монет (геймпасс «x2 монет» ставит атрибут CoinMult).
+function DataService:CoinMultiplier(player: Player): number
+	local mult = player:GetAttribute("CoinMult")
+	return if type(mult) == "number" and mult > 0 then mult else 1
+end
+
+-- Сохранить сразу (после покупки за робуксы).
+function DataService:SaveNow(player: Player)
+	save(player)
 end
 
 function DataService:Get(player: Player): PlayerData?

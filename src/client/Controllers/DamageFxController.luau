@@ -268,7 +268,7 @@ local function build()
 
 	killfeed = Ui.create("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 60),
+		Position = UDim2.new(1, -16, 0, 230), -- под мини-картой
 		Size = UDim2.fromOffset(340, 180),
 		BackgroundTransparency = 1,
 		Parent = gui,

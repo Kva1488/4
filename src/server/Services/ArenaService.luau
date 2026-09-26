@@ -701,7 +701,7 @@ local function endRound()
 	if winner and winner.score > 0 then
 		local player = winner.player
 		DataService:Update(player, function(data)
-			data.Coins += ArenaModes.WinCoins
+			data.Coins += ArenaModes.WinCoins * DataService:CoinMultiplier(player)
 			data.ArenaWins += 1
 		end)
 		ProgressionService:AddXp(player, Progression.Xp.ArenaWin)
@@ -721,7 +721,7 @@ local function endRound()
 	for _, entry in list do
 		if entry ~= winner and entry.score > 0 then
 			DataService:Update(entry.player, function(data)
-				data.Coins += ArenaModes.ParticipationCoins
+				data.Coins += ArenaModes.ParticipationCoins * DataService:CoinMultiplier(entry.player)
 			end)
 			ProgressionService:AddXp(entry.player, Progression.Xp.ArenaParticipation)
 		end

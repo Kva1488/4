@@ -1137,7 +1137,8 @@ local function reward(current: Fight)
 	for rank, entry in ranking do
 		local share = if total > 0 then entry.damage / total else 0
 		local counts = entry.damage >= current.maxHealth * MIN_SHARE_FOR_KILL
-		local coins = 100 + math.floor(share * 600) + (if rank == 1 then 150 else 0)
+		local coins = (100 + math.floor(share * 600) + (if rank == 1 then 150 else 0))
+			* DataService:CoinMultiplier(entry.player)
 		local xp = Progression.Xp.BossParticipation + math.floor(share * Progression.Xp.BossShare)
 		DataService:Update(entry.player, function(data)
 			data.Coins += coins

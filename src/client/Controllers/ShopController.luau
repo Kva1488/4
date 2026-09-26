@@ -1,5 +1,6 @@
 --!strict
--- Магазин: прокачка способностей и скины Перчатки. Открывается кнопкой слева или клавишей V.
+-- Магазин: прокачка способностей, скины Перчатки и покупки за робуксы (геймпассы и пакеты).
+-- Открывается кнопкой слева или клавишей V.
 -- Все покупки проверяет сервер (ShopService), клиент только показывает и отправляет запрос.
 
 local Players = game:GetService("Players")
@@ -8,6 +9,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local Monetization = require(ReplicatedStorage.Shared.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
@@ -34,6 +36,7 @@ local busy = false
 local rainbowPreviews: { Frame } = {}
 
 local purchase: RemoteFunction
+local buyItem: RemoteFunction
 
 local function request(kind: string, id: string)
 	if busy then
@@ -180,12 +183,161 @@ local function buildSkins(page: Frame)
 	end
 end
 
+-- Вкладка "Робуксы": геймпассы (разово, навсегда) и пакеты монет/опыта (сколько угодно раз).
+type RobuxCard = { button: TextButton, pass: Monetization.Pass? }
+local robuxCards: { RobuxCard } = {}
+local ROBUX_GREEN = Color3.fromRGB(0, 170, 90)
+
+local function buy(kind: string, key: string)
+	if busy then
+		return
+	end
+	busy = true
+	local ok, success, message = pcall(buyItem.InvokeServer, buyItem, kind, key)
+	busy = false
+	if not ok then
+		NotifyController.show("Ошибка связи с сервером", Color3.fromRGB(255, 90, 90))
+	elseif not success then
+		NotifyController.show(message, Color3.fromRGB(255, 90, 90))
+	elseif message ~= "" then
+		NotifyController.show(message, GREEN)
+	end
+end
+
+local function sectionTitle(page: Instance, text: string, order: number)
+	local holder = Ui.create("Frame", {
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = page,
+	})
+	Ui.label({
+		Size = UDim2.new(1, 0, 1, 0),
+		Text = text,
+		Font = Enum.Font.GothamBlack,
+		TextColor3 = Ui.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = holder,
+	})
+	return holder
+end
+
+local function robuxCard(
+	page: Instance,
+	order: number,
+	icon: string,
+	name: string,
+	description: string,
+	color: Color3
+): (Frame, TextButton)
+	local card = Ui.create("Frame", {
+		BackgroundColor3 = Ui.Colors.PanelLight,
+		LayoutOrder = order,
+		Parent = page,
+	}, {
+		Ui.corner(12),
+		Ui.stroke(color, 1.5, 0.4),
+		Ui.create("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(color:Lerp(Color3.new(0, 0, 0), 0.6), Ui.Colors.PanelLight),
+		}),
+	})
+	Ui.label({
+		Size = UDim2.fromOffset(40, 40),
+		Position = UDim2.fromOffset(8, 8),
+		Text = icon,
+		Parent = card,
+	})
+	Ui.label({
+		Size = UDim2.new(1, -60, 0, 20),
+		Position = UDim2.fromOffset(52, 10),
+		Text = name,
+		TextColor3 = color,
+		Font = Enum.Font.GothamBlack,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	Ui.label({
+		Size = UDim2.new(1, -60, 0, 34),
+		Position = UDim2.fromOffset(52, 32),
+		Text = description,
+		TextColor3 = Ui.Colors.Muted,
+		Font = Enum.Font.GothamMedium,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = card,
+	})
+	local button = actionButton(card, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.new(1, -16, 0, 32),
+		BackgroundColor3 = ROBUX_GREEN,
+	})
+	return card, button
+end
+
+local function buildRobux(page: Frame)
+	Ui.create("UIGridLayout", {
+		CellSize = UDim2.new(0.5, -6, 0, 118),
+		CellPadding = UDim2.fromOffset(8, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = page,
+	})
+	local order = 0
+	local function nextOrder(): number
+		order += 1
+		return order
+	end
+	-- Заголовки занимают две ячейки: второй — пустышка, чтобы сетка не сбилась.
+	local function header(text: string)
+		sectionTitle(page, text, nextOrder())
+		sectionTitle(page, "", nextOrder())
+	end
+	header("⭐ Геймпассы — навсегда")
+	for _, pass in Monetization.Passes do
+		local _, button = robuxCard(page, nextOrder(), pass.icon, pass.name, pass.description, pass.color)
+		button.Activated:Connect(function()
+			if not player:GetAttribute(Monetization.attribute(pass)) then
+				buy("pass", pass.key)
+			end
+		end)
+		table.insert(robuxCards, { button = button, pass = pass })
+	end
+	if order % 2 == 1 then
+		sectionTitle(page, "", nextOrder())
+	end
+	header("🪙 Пакеты — можно покупать много раз")
+	for _, product in Monetization.Products do
+		local description = if product.coins
+			then "Монеты сразу на счёт"
+			else "Опыт сразу: новые уровни и титулы"
+		local _, button = robuxCard(page, nextOrder(), product.icon, product.name, description, product.color)
+		button.Activated:Connect(function()
+			buy("product", product.key)
+		end)
+		table.insert(robuxCards, { button = button, pass = nil })
+		button.Text = `R$ {product.price}`
+	end
+end
+
+local function renderRobux()
+	for _, card in robuxCards do
+		local pass = card.pass
+		if pass then
+			local owned = player:GetAttribute(Monetization.attribute(pass)) == true
+			card.button.Text = if owned then "Куплено ✓" else `R$ {pass.price}`
+			card.button.BackgroundColor3 = if owned then Ui.Colors.Gold else ROBUX_GREEN
+		end
+	end
+end
+
 local function render()
 	local data = PlayerState.get()
 	if not data then
 		return
 	end
 	coinsLabel.Text = `🪙 {data.Coins}`
+	renderRobux()
 
 	for _, card in upgradeCards do
 		local level = data.Upgrades[card.upgrade.id] or 0
@@ -334,7 +486,13 @@ local function build()
 	end)
 
 	-- Вкладки.
-	for i, tab in { { "Upgrades", "⚔️ Прокачка" }, { "Skins", "🧤 Скины" } } do
+	for i, tab in
+		{
+			{ "Upgrades", "⚔️ Прокачка" },
+			{ "Skins", "🧤 Скины" },
+			{ "Robux", "💎 Робуксы" },
+		}
+	do
 		local button = actionButton(wrapper, {
 			Position = UDim2.fromOffset(20 + (i - 1) * 170, 56),
 			Size = UDim2.fromOffset(160, 36),
@@ -361,12 +519,14 @@ local function build()
 	end
 	buildUpgrades(pages.Upgrades)
 	buildSkins(pages.Skins)
+	buildRobux(pages.Robux)
 
 	Ui.registerPanel("Shop", setVisible)
 end
 
 function ShopController:Init()
 	purchase = Remotes.func("ShopPurchase")
+	buyItem = Remotes.func("BuyItem")
 end
 
 function ShopController:Start()
@@ -374,6 +534,12 @@ function ShopController:Start()
 	PlayerState.Changed:Connect(function()
 		if panel.Visible then
 			render()
+		end
+	end)
+	-- Купленные геймпассы сервер отмечает атрибутами игрока.
+	player.AttributeChanged:Connect(function()
+		if panel.Visible then
+			renderRobux()
 		end
 	end)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)

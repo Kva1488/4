@@ -94,6 +94,13 @@ local expected = {
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.BossController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.ArenaController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.RewardsController"] = "ModuleScript",
+	["ServerScriptService.Server.Services.MonetizationService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.TravelService"] = "ModuleScript",
+	["ServerScriptService.Server.World.BiomeBuilder"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Biomes"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Monetization"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.MapController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.SprintController"] = "ModuleScript",
 }
 for path, className in expected do
 	local node = find(path)
@@ -384,22 +391,96 @@ check(
 )
 check(#hand >= 30, `Dark Dimension hand is detailed ({#hand} parts)`)
 local Places = loadModule("src/shared/Places.luau")
-local stoneSource = fs.readFile("src/server/Services/StoneService.luau")
+local Biomes = loadModule("src/shared/Biomes.luau")
 local clear = true
-local stoneSpots = 0
-for x, z in string.gmatch(stoneSource, "Vector3%.new%((%-?%d+), 0, (%-?%d+)%)") do
-	stoneSpots += 1
-	local d = (roblox.Vector3.new(tonumber(x), 0, tonumber(z)) - Places.BossCenter).Magnitude
-	if d < Places.BossRadius + 40 then
+for _, biome in Biomes.List do
+	if (biome.center - Places.BossCenter).Magnitude < biome.radius + Places.BossRadius + 20 then
 		clear = false
 	end
 end
-check(clear and stoneSpots >= 6, `Dormammu's rift does not overlap {stoneSpots} stone locations`)
+check(clear, "Dormammu's rift does not overlap biomes")
 check(Places.ArenaCenter.Y > 250, "mode arena floats high above the map")
 local ArenaModes = loadModule("src/shared/ArenaModes.luau")
 check(
 	ArenaModes.ById.KingOfHill and ArenaModes.ById.Gauntlet and ArenaModes.ById.Deathmatch,
 	"arena has King of the Hill, Gauntlet capture and Deathmatch"
+)
+
+-- 9. Большая карта и биомы
+print("[world]")
+check(Biomes.WorldHalf >= 900, `map is large ({Biomes.WorldHalf * 2}×{Biomes.WorldHalf * 2})`)
+local stoneBiome = {}
+for _, biome in Biomes.List do
+	check(Items.StoneById[biome.stoneId] ~= nil, `{biome.id} holds a real stone ({biome.stoneId})`)
+	check(not stoneBiome[biome.stoneId], `one biome per stone ({biome.stoneId})`)
+	stoneBiome[biome.stoneId] = biome.id
+	local edge = biome.center.Magnitude + biome.radius
+	check(edge < Biomes.WorldHalf, `{biome.id} fits inside the map`)
+	for _, other in Biomes.List do
+		if other ~= biome then
+			check(
+				(other.center - biome.center).Magnitude > other.radius + biome.radius,
+				`{biome.id} does not overlap {other.id}`
+			)
+		end
+	end
+	check(Biomes.at(biome.center) == biome, `Biomes.at finds {biome.id}`)
+end
+check(#Biomes.List == 6, "6 biomes for 6 stones")
+local waystoneIds = {}
+for _, waystone in Biomes.Waystones do
+	check(not waystoneIds[waystone.id], `unique waystone {waystone.id}`)
+	waystoneIds[waystone.id] = true
+	check(
+		(waystone.position - Places.BossCenter).Magnitude > Places.BossRadius + 10,
+		`{waystone.id} portal is off the lair`
+	)
+end
+check(waystoneIds.Hub and waystoneIds.Rift, "portals at spawn and at the rift")
+
+-- 10. Покупки за робуксы
+print("[monetization]")
+local Monetization = loadModule("src/shared/Monetization.luau")
+local passKinds = {}
+local stonePasses = 0
+local heroPasses = {}
+local passIds = {}
+for _, pass in Monetization.Passes do
+	passKinds[pass.kind] = true
+	check(pass.price > 0, `{pass.key} has a price`)
+	if pass.id ~= 0 then
+		check(not passIds[pass.id], `{pass.key} has a unique game pass id`)
+		passIds[pass.id] = true
+	end
+	if pass.kind == "Stone" then
+		stonePasses += 1
+		check(Items.StoneById[pass.stone] ~= nil, `{pass.key} gives a real stone`)
+	elseif pass.kind == "Hero" then
+		check(Heroes.ById[pass.hero] ~= nil, `{pass.key} unlocks a real hero`)
+		heroPasses[pass.hero] = true
+	end
+end
+check(stonePasses == #Items.Stones, "a game pass for every stone")
+check(passKinds.StarterPack and passKinds.DoubleCoins and passKinds.DoubleXp, "starter pack, x2 coins, x2 XP")
+for _, hero in Heroes.List do
+	if hero.unlock then
+		check(heroPasses[hero.id] == true, `locked hero {hero.id} can be bought`)
+	end
+end
+check(Monetization.StarterStones == 2, "starter pack gives 2 random stones")
+local coinsProducts, xpProducts = 0, 0
+for _, product in Monetization.Products do
+	if product.coins then
+		coinsProducts += 1
+	end
+	if product.xp then
+		xpProducts += 1
+	end
+end
+check(coinsProducts >= 1 and xpProducts >= 1, "coin and XP packs")
+check(
+	Heroes.isUnlocked(Heroes.ById.ThorBoth, { OwnedHeroes = { ThorBoth = true } }),
+	"bought hero is unlocked without progress"
 )
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)

@@ -64,7 +64,7 @@
       "Atmosphere": {
         "$className": "Atmosphere",
         "$properties": {
-          "Density": 0.32,
+          "Density": 0.26,
           "Offset": 0.15,
           "Color": [
             0.85,
