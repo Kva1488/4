@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local Heroes = require(ReplicatedStorage.Shared.Heroes)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
@@ -178,15 +179,58 @@ local function onGloriousPurpose()
 	end)
 end
 
-local function onHeroUnlocked(_heroId: string)
-	flashScreen(Color3.fromRGB(110, 255, 150), 0.3, 1.5)
+local function onHeroUnlocked(heroId: string)
+	local hero = Heroes.ById[heroId]
+	if not hero then
+		return
+	end
+	flashScreen(hero.color, 0.3, 1.5)
 	ScreenFxController.fovPunch(14)
 	showBanner(
-		"ЛОКИ, БОГ ВРЕМЕНИ",
+		string.upper(hero.name),
 		"Новый герой открыт! Меню героев [H]",
-		Color3.fromRGB(110, 255, 150),
+		hero.color,
 		4
 	)
+end
+
+-- Подъём Соковии: земля уходит из-под ног.
+local function onSokovia()
+	ScreenFxController.fovPunch(10)
+	flashScreen(Color3.fromRGB(255, 110, 80), 0.6, 0.8)
+	showBanner(
+		"ПОДЪЁМ СОКОВИИ",
+		"Нет на мне нитей",
+		Color3.fromRGB(255, 90, 70),
+		2.2
+	)
+end
+
+-- Конец мультивселенной: шесть вспышек цветов камней, затем белый экран.
+local function onMultiverseEnd()
+	setBars(true)
+	tween(zoom, 1.5, { Value = -14 }, Enum.EasingStyle.Sine)
+	showBanner(
+		"КОНЕЦ МУЛЬТИВСЕЛЕННОЙ",
+		"Шесть камней. Одна воля.",
+		Color3.fromRGB(255, 215, 90),
+		3
+	)
+	for i, stone in Items.Stones do
+		task.delay(i * 0.3, function()
+			flashScreen(stone.color, 0.55, 0.3)
+			ScreenFxController.fovPunch(6)
+		end)
+	end
+	task.delay(#Items.Stones * 0.3 + 0.4, function()
+		zoom.Value = 0
+		flashScreen(Color3.new(1, 1, 1), 0, 1.4)
+		ScreenFxController.fovPunch(25)
+		tint(Color3.new(1, 1, 1), -0.8, 0.6, 2)
+	end)
+	task.delay(#Items.Stones * 0.3 + 2.2, function()
+		setBars(false)
+	end)
 end
 
 local function onStoneCollected(stoneId: string, count: number)
@@ -303,6 +347,10 @@ function ScreenFxController:Start()
 			onGloriousPurpose()
 		elseif kind == "HeroUnlocked" then
 			onHeroUnlocked(tostring(extra))
+		elseif kind == "Sokovia" then
+			onSokovia()
+		elseif kind == "MultiverseEnd" then
+			onMultiverseEnd()
 		end
 	end)
 	Remotes.event("StoneCollected").OnClientEvent:Connect(onStoneCollected)

@@ -33,7 +33,11 @@ local killfeedEvent = Remotes.event("Killfeed")
 local notifyEvent = Remotes.event("Notify")
 local screenFxEvent = Remotes.event("ScreenFx")
 
-local GOD_LOKI_KILLS = Heroes.ById.GodLoki.unlockLokiKills or 25
+-- За какого героя копится каждая статистика.
+local PROGRESS_HERO: { [string]: string } = {
+	LokiKills = "Loki",
+	UltronKills = "Ultron",
+}
 
 local function asTarget(model: Model?): Target?
 	if not model then
@@ -107,22 +111,37 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 	victim:SetAttribute("Rewarded", true)
 	local victimPlayer = Players:GetPlayerFromCharacter(victim.Parent)
 	local amount = if victimPlayer then Config.Rewards.PlayerKill else Config.Rewards.DummyKill
-	local justUnlocked = false
+	-- Прогресс усиленных героев: убийства за базового героя.
+	local victimHero = if victimPlayer
+		then victimPlayer.Character and victimPlayer.Character:GetAttribute("Hero")
+		else nil
+	local unlocked: Heroes.Hero? = nil
 	DataService:Update(attacker, function(data)
 		data.Coins += amount
-		-- Убийства за Локи ведут к превращению в бога времени.
-		if data.Hero == "Loki" then
-			data.LokiKills += 1
-			justUnlocked = data.LokiKills == GOD_LOKI_KILLS
+		for _, upgraded in Heroes.List do
+			local unlock = upgraded.unlock
+			if unlock and PROGRESS_HERO[unlock.stat] == data.Hero then
+				local before = Heroes.isUnlocked(upgraded, data)
+				local stats = data :: any
+				stats[unlock.stat] += 1
+				-- Канон «Что, если…?»: Альтрон убил Таноса и забрал все камни.
+				if data.Hero == "Ultron" and victimHero == "Thanos" then
+					stats[unlock.stat] = math.max(stats[unlock.stat], unlock.count)
+				end
+				if not before and Heroes.isUnlocked(upgraded, data) then
+					unlocked = upgraded
+				end
+			end
 		end
 	end)
-	if justUnlocked then
+	if unlocked then
+		local hero = unlocked :: Heroes.Hero
 		notifyEvent:FireClient(
 			attacker,
-			"🌳 Открыт герой: Локи, бог времени! Выбери его в меню героев [H]",
-			Color3.fromRGB(110, 255, 150)
+			`{hero.icon} Открыт герой: {hero.name}! Меню героев [H]`,
+			hero.color
 		)
-		screenFxEvent:FireClient(attacker, "HeroUnlocked", Vector3.zero, "GodLoki")
+		screenFxEvent:FireClient(attacker, "HeroUnlocked", Vector3.zero, hero.id)
 	end
 	killfeedEvent:FireAllClients(
 		attacker.DisplayName,

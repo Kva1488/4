@@ -3,7 +3,8 @@
 -- • детали с тегом "Spin" (кристаллы на колоннах арены) вращаются и покачиваются;
 -- • радужные Перчатки (атрибут Rainbow у модели InfinityGauntlet) переливаются цветами,
 --   а собранные камни во всех перчатках мягко "дышат";
--- • всплески частиц по событию "Burst" от сервера (удары, взрывы, подбор камней).
+-- • всплески частиц по событию "Burst" от сервера (удары, взрывы, подбор камней);
+-- • пять Камней Бесконечности кружат вокруг Альтрона бесконечности (Разум — у него во лбу).
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
@@ -11,6 +12,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
@@ -79,6 +81,75 @@ local function burst(position: Vector3, color: Color3, count: number, speed: num
 	Debris:AddItem(holder, 1.5)
 end
 
+-- Орбита камней: для каждого Альтрона бесконечности — пять локальных светящихся камней.
+local orbits: { [Model]: { BasePart } } = {}
+local ORBIT_STONES = {}
+for _, stone in Items.Stones do
+	if stone.id ~= "Mind" then
+		table.insert(ORBIT_STONES, stone)
+	end
+end
+
+local function makeOrbit(): { BasePart }
+	local gems: { BasePart } = {}
+	for _, stone in ORBIT_STONES do
+		local gem = Instance.new("Part")
+		gem.Name = stone.id .. "Orbit"
+		gem.Shape = Enum.PartType.Ball
+		gem.Size = Vector3.one * 0.55
+		gem.Material = Enum.Material.Neon
+		gem.Color = stone.color
+		gem.Anchored = true
+		gem.CanCollide = false
+		gem.CanQuery = false
+		gem.CanTouch = false
+		gem.CastShadow = false
+		local light = Instance.new("PointLight")
+		light.Color = stone.color
+		light.Range = 6
+		light.Brightness = 1.5
+		light.Parent = gem
+		gem.Parent = workspace.CurrentCamera
+		table.insert(gems, gem)
+	end
+	return gems
+end
+
+local function updateOrbits(t: number)
+	local seen: { [Model]: boolean } = {}
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if
+			character
+			and root
+			and character:GetAttribute("Hero") == "InfinityUltron"
+			and not character:GetAttribute("Invisible")
+		then
+			seen[character] = true
+			local gems = orbits[character]
+			if not gems then
+				gems = makeOrbit()
+				orbits[character] = gems
+			end
+			for i, gem in gems do
+				local angle = t * 1.6 + (i / #gems) * math.pi * 2
+				local tilt = math.sin(t * 0.7 + i) * 0.8
+				gem.Position = root.Position
+					+ Vector3.new(math.cos(angle) * 3, 1.2 + tilt, math.sin(angle) * 3)
+			end
+		end
+	end
+	for character, gems in orbits do
+		if not seen[character] then
+			for _, gem in gems do
+				gem:Destroy()
+			end
+			orbits[character] = nil
+		end
+	end
+end
+
 function WorldFxController:Start()
 	Remotes.event("Burst").OnClientEvent:Connect(burst)
 
@@ -98,6 +169,8 @@ function WorldFxController:Start()
 				* CFrame.Angles(0, t * 0.8, 0)
 				* (base - base.Position)
 		end
+
+		updateOrbits(t)
 
 		local rainbow = Shop.skinColor(Shop.SkinById.Rainbow, t)
 		local darkRainbow = rainbow:Lerp(Color3.new(0, 0, 0), 0.38)

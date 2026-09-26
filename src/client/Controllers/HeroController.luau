@@ -1,6 +1,6 @@
 --!strict
--- Меню героев: Танос, Локи и Локи, бог времени. Открывается кнопкой слева или клавишей H.
--- Бог времени открывается после 25 убийств за Локи — прогресс показан на карточке.
+-- Меню героев: Танос, Локи, Локи — бог времени, Альтрон и Альтрон бесконечности.
+-- Открывается кнопкой слева или клавишей H. Усиленные версии открываются прогрессом за базового героя.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -44,7 +44,7 @@ local function render()
 	end
 	for _, card in cards do
 		local hero = card.hero
-		local unlocked = Heroes.isUnlocked(hero, data.LokiKills)
+		local unlocked = Heroes.isUnlocked(hero, data)
 		local selected = data.Hero == hero.id
 		card.stroke.Color = if selected then hero.color else Ui.Colors.PanelLight
 		card.stroke.Thickness = if selected then 3 else 2
@@ -56,10 +56,10 @@ local function render()
 			card.button.Text = "ВЫБРАТЬ"
 			card.button.BackgroundColor3 = Color3.fromRGB(70, 190, 100)
 		else
-			local need = hero.unlockLokiKills or 0
-			card.button.Text = `🔒 {data.LokiKills}/{need} убийств за Локи`
+			local have, need = Heroes.progress(hero, data)
+			card.button.Text = `🔒 {have}/{need}`
 			card.button.BackgroundColor3 = Ui.Colors.Locked
-			card.progressFill.Size = UDim2.fromScale(math.clamp(data.LokiKills / math.max(need, 1), 0, 1), 1)
+			card.progressFill.Size = UDim2.fromScale(math.clamp(have / math.max(need, 1), 0, 1), 1)
 		end
 	end
 end
@@ -121,8 +121,12 @@ local function createCard(hero: Heroes.Hero, index: number, parent: Instance): C
 		Parent = card,
 	})
 
-	-- Описание и список способностей.
+	-- Описание, условие открытия и список способностей.
 	local lines = { hero.description, "" }
+	if hero.unlock then
+		table.insert(lines, `🔓 <b>Открытие:</b> {hero.unlock.count} {hero.unlock.label}`)
+		table.insert(lines, "")
+	end
 	for _, ability in Abilities.forHero(hero.id) do
 		table.insert(
 			lines,
@@ -283,18 +287,25 @@ local function build()
 		Ui.togglePanel("Heroes", false)
 	end)
 
-	local row = Ui.create("Frame", {
-		Position = UDim2.fromOffset(20, 64),
-		Size = UDim2.fromOffset(PANEL_SIZE.X - 40, 350),
+	-- Карточки листаются по горизонтали: героев больше, чем помещается в панель.
+	local row = Ui.create("ScrollingFrame", {
+		Position = UDim2.fromOffset(20, 60),
+		Size = UDim2.fromOffset(PANEL_SIZE.X - 40, 366),
 		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 5,
+		ScrollBarImageColor3 = accent,
+		ScrollingDirection = Enum.ScrollingDirection.X,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.X,
 		Parent = wrapper,
 	}, {
 		Ui.create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 			Padding = UDim.new(0, 10),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
+		Ui.create("UIPadding", { PaddingLeft = UDim.new(0, 2), PaddingTop = UDim.new(0, 2) }),
 	})
 	for index, hero in Heroes.List do
 		table.insert(cards, createCard(hero, index, row))

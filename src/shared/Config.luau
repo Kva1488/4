@@ -13,6 +13,7 @@ local Config = {
 		EquippedSkin = "Gold",
 		Hero = "Thanos", -- текущий герой (Shared/Heroes)
 		LokiKills = 0, -- убийства за Локи (открывают Локи, бога времени)
+		UltronKills = 0, -- убийства за Альтрона (открывают Альтрона бесконечности)
 	},
 
 	Rewards = {

@@ -3,6 +3,8 @@
 -- • Танос: фиолетовая кожа (перчатку надевает GauntletService).
 -- • Локи: золотой шлем с рогами, зелёный плащ, наплечники, два кинжала.
 -- • Локи, бог времени: рога длиннее, "часовой" нимб, тёмный плащ и зелёная аура времени.
+-- • Альтрон и Альтрон бесконечности: металлический корпус (одежда снимается), голова с
+--   красными глазами, ядро в груди, когти. Камни вокруг Альтрона бесконечности рисуют клиенты.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,7 +23,7 @@ local HeroService = {}
 
 local SWITCH_COOLDOWN = 3
 local COSMETICS = "HeroCosmetics"
-local THANOS_SKIN = Color3.fromRGB(135, 95, 165)
+local HIDDEN_CLOTHING = "HiddenClothing"
 
 local SHAPES: { [string]: Enum.PartType } = {
 	Block = Enum.PartType.Block,
@@ -48,6 +50,22 @@ local LOOKS: { [string]: { [string]: { color: Color3, material: Enum.Material } 
 		steel = { color = Color3.fromRGB(215, 225, 230), material = Enum.Material.Metal },
 		dark = { color = Color3.fromRGB(40, 35, 30), material = Enum.Material.Metal },
 		glow = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon },
+	},
+	Ultron = {
+		plate = { color = Color3.fromRGB(170, 175, 187), material = Enum.Material.DiamondPlate },
+		trim = { color = Color3.fromRGB(105, 108, 118), material = Enum.Material.Metal },
+		steel = { color = Color3.fromRGB(215, 225, 235), material = Enum.Material.Metal },
+		eye = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
+		lining = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
+		gem = { color = Color3.fromRGB(255, 215, 40), material = Enum.Material.Neon },
+	},
+	InfinityUltron = {
+		plate = { color = Color3.fromRGB(125, 130, 146), material = Enum.Material.DiamondPlate },
+		trim = { color = Color3.fromRGB(78, 80, 94), material = Enum.Material.Metal },
+		steel = { color = Color3.fromRGB(235, 200, 110), material = Enum.Material.Metal },
+		eye = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
+		lining = { color = Color3.fromRGB(235, 185, 60), material = Enum.Material.Metal },
+		gem = { color = Color3.fromRGB(255, 215, 40), material = Enum.Material.Neon },
 	},
 }
 
@@ -96,8 +114,46 @@ local SKIN_PARTS = {
 	"Right Arm",
 }
 
-local function setSkin(character: Model, color: Color3?)
-	for _, name in SKIN_PARTS do
+-- Роботу красим ещё и торс с ногами.
+local ROBOT_PARTS = {
+	"UpperTorso",
+	"LowerTorso",
+	"Torso",
+	"LeftUpperLeg",
+	"RightUpperLeg",
+	"LeftLowerLeg",
+	"RightLowerLeg",
+	"LeftFoot",
+	"RightFoot",
+	"Left Leg",
+	"Right Leg",
+}
+
+-- Одежда робота прячется в папку внутри персонажа (так она не рисуется) и возвращается обратно.
+local function setClothingHidden(character: Model, hidden: boolean)
+	local stash = character:FindFirstChild(HIDDEN_CLOTHING)
+	if hidden then
+		if not stash then
+			local folder = Instance.new("Folder")
+			folder.Name = HIDDEN_CLOTHING
+			folder.Parent = character
+			stash = folder
+		end
+		for _, item in character:GetChildren() do
+			if item:IsA("Clothing") or item:IsA("ShirtGraphic") then
+				(item :: Instance).Parent = stash
+			end
+		end
+	elseif stash then
+		for _, item in stash:GetChildren() do
+			item.Parent = character
+		end
+		stash:Destroy()
+	end
+end
+
+local function paint(character: Model, names: { string }, color: Color3?)
+	for _, name in names do
 		local part = character:FindFirstChild(name)
 		if part and part:IsA("BasePart") then
 			local original = part:GetAttribute("OrigColor")
@@ -108,6 +164,12 @@ local function setSkin(character: Model, color: Color3?)
 			part.Color = color or original :: Color3
 		end
 	end
+end
+
+local function setSkin(character: Model, color: Color3?, robot: boolean?)
+	paint(character, SKIN_PARTS, color)
+	paint(character, ROBOT_PARTS, if robot then color else nil)
+	setClothingHidden(character, robot == true)
 end
 
 local function addAura(character: Model)
@@ -165,8 +227,11 @@ function HeroService:Apply(character: Model, heroId: string)
 	clearCosmetics(character)
 	character:SetAttribute("Hero", heroId)
 
+	local hero = Heroes.ById[heroId]
+	if hero and hero.bodyColor then
+		setSkin(character, hero.bodyColor, hero.robot)
+	end
 	if heroId == "Thanos" then
-		setSkin(character, THANOS_SKIN)
 		return
 	end
 
@@ -218,9 +283,10 @@ local function onSelect(player: Player, heroId: unknown): (boolean, string)
 	if not hero or not data then
 		return false, "Неизвестный герой"
 	end
-	if not Heroes.isUnlocked(hero, data.LokiKills) then
-		return false,
-			`Нужно {hero.unlockLokiKills} убийств за Локи (сейчас {data.LokiKills})`
+	if not Heroes.isUnlocked(hero, data) then
+		local have, need = Heroes.progress(hero, data)
+		local label = if hero.unlock then hero.unlock.label else ""
+		return false, `Нужно {need} {label} (сейчас {have})`
 	end
 	if data.Hero == heroId then
 		return false, "Этот герой уже выбран"

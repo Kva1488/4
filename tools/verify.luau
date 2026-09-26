@@ -60,6 +60,9 @@ local expected = {
 	["ServerScriptService.Server.Combat.Timeline"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Projectile"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.HeroController"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.Ultron"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.InfinityUltron"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Sentries"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -128,9 +131,26 @@ for _, hero in Heroes.List do
 	local count = #Abilities.forHero(hero.id)
 	check(count >= 6, `{hero.id} has {count} abilities`)
 end
-check(Heroes.isUnlocked(Heroes.ById.Loki, 0), "Loki unlocked from start")
-check(not Heroes.isUnlocked(Heroes.ById.GodLoki, 24), "God Loki locked at 24 kills")
-check(Heroes.isUnlocked(Heroes.ById.GodLoki, 25), "God Loki unlocked at 25 kills")
+check(Heroes.isUnlocked(Heroes.ById.Loki, {}), "Loki unlocked from start")
+check(Heroes.isUnlocked(Heroes.ById.Ultron, {}), "Ultron unlocked from start")
+check(not Heroes.isUnlocked(Heroes.ById.GodLoki, { LokiKills = 24 }), "God Loki locked at 24 kills")
+check(Heroes.isUnlocked(Heroes.ById.GodLoki, { LokiKills = 25 }), "God Loki unlocked at 25 kills")
+check(
+	not Heroes.isUnlocked(Heroes.ById.InfinityUltron, { LokiKills = 99 }),
+	"Infinity Ultron ignores Loki kills"
+)
+check(
+	Heroes.isUnlocked(Heroes.ById.InfinityUltron, { UltronKills = 25 }),
+	"Infinity Ultron unlocked at 25 kills"
+)
+for _, hero in Heroes.List do
+	if hero.unlock then
+		check(
+			loadModule("src/shared/Config.luau").DefaultData[hero.unlock.stat] == 0,
+			`stat {hero.unlock.stat} exists in DefaultData`
+		)
+	end
+end
 for _, s in Items.Stones do
 	local a = Abilities.ById[s.ability]
 	check(a ~= nil and a.requires[1] == s.id and #a.requires == 1, `{s.id} unlocks {s.ability}`)
@@ -194,9 +214,9 @@ end
 -- 5. Внешний вид Локи
 print("[heroes]")
 local HeroModel = loadModule("src/shared/HeroModel.luau")
-for _, id in { "Loki", "GodLoki" } do
+for _, id in { "Loki", "GodLoki", "Ultron", "InfinityUltron" } do
 	local outfit = HeroModel.outfit(id)
-	check(outfit ~= nil and #outfit.head >= 10 and #outfit.torso >= 5, `{id} has helmet and cape`)
+	check(outfit ~= nil and #outfit.head >= 10 and #outfit.torso >= 5, `{id} has head and torso outfit`)
 end
 check(HeroModel.outfit("Thanos") == nil, "Thanos uses the gauntlet, not an outfit")
 

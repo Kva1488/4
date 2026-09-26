@@ -1,0 +1,152 @@
+--!strict
+-- Альтрон бесконечности — «Что, если…?», эпизоды 8–9.
+-- Альтрон в теле Вижна, со всеми шестью Камнями Бесконечности.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Abilities = require(ReplicatedStorage.Shared.Abilities)
+local Items = require(ReplicatedStorage.Shared.Items)
+
+local Damage = require(script.Parent.Parent.Damage)
+local Fx = require(script.Parent.Parent.Fx)
+local Kit = require(script.Parent.Parent.Kit)
+local Sentries = require(script.Parent.Parent.Sentries)
+local Status = require(script.Parent.Parent.Status)
+local Thanos = require(script.Parent.Thanos)
+
+type Context = Kit.Context
+
+local color = Kit.color
+local hit = Kit.hit
+
+local strikeIndex: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: any
+
+local Handlers: { [string]: (Context) -> () } = {}
+
+-- Удар бесконечности: каждый удар окрашен следующим камнем.
+function Handlers.InfinityStrike(ctx)
+	local index = (strikeIndex[ctx.player] or 0) % #Items.Stones + 1
+	strikeIndex[ctx.player] = index
+	local stone = Items.Stones[index]
+
+	local direction = Kit.aimFlat(ctx)
+	local origin = CFrame.lookAt(ctx.root.Position, ctx.root.Position + direction)
+	local hitPoint = ctx.root.Position + direction * 4
+	Fx.slash(origin, stone.color, 7, index % 2 == 0)
+	Fx.sound("Punch", hitPoint, 0.7, 0.9)
+	for _, target in Damage.inRadius(hitPoint, 5, ctx.character) do
+		hit(ctx, target, 14, stone.color)
+		Fx.burst(target.root.Position, stone.color, 15, 25)
+	end
+end
+
+-- Залп Камня Разума: пробивающий луч.
+function Handlers.MindBlast(ctx)
+	local c = color("MindBlast")
+	local origin = ctx.root.Position + Vector3.new(0, 1.6, 0)
+	local direction = Kit.aim3D(ctx, origin)
+	local targets, finish = Kit.alongLine(ctx, origin, direction, Abilities.ById.MindBlast.range, 4)
+	Fx.sound("Beam", origin, 1, 0.8)
+	Fx.beam(origin, finish, c, 3, 0.6)
+	Fx.beam(origin, finish, Color3.new(1, 1, 1), 1.1, 0.45)
+	Fx.flash(origin, c, 26)
+	Fx.burst(finish, c, 40, 35)
+	for _, target in targets do
+		hit(ctx, target, 35)
+		Fx.burst(target.root.Position, c, 20, 25)
+	end
+end
+
+-- Прыжок между мирами (Камень Пространства).
+function Handlers.MultiversePortal(ctx)
+	local c = color("MultiversePortal")
+	local look = Kit.aimFlat(ctx)
+	Fx.portal(ctx.root.Position, look, c, 4, 0.7)
+	Fx.sound("Teleport", ctx.root.Position, 0.8, 0.7)
+	Kit.teleport(ctx, ctx.target)
+	Fx.portal(ctx.target + Vector3.new(0, 3, 0), look, c, 4, 0.8)
+	Fx.burst(ctx.target + Vector3.new(0, 3, 0), c, 40, 30)
+end
+
+-- Сверхновая Силы.
+function Handlers.PowerNova(ctx)
+	local radius = Abilities.ById.PowerNova.range
+	local c = color("PowerNova")
+	local center = ctx.root.Position
+	Fx.sound("Wave", center, 1.2, 0.7)
+	Fx.shockwave(center - Vector3.new(0, 2.5, 0), c, radius)
+	Fx.sphere(center, c, 3, radius * 1.4, 0.5)
+	Fx.burst(center, c, 90, 70)
+	Fx.flash(center, c, 50, 0.7)
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		hit(ctx, target, 45)
+		Damage.pushAway(target, center, 110, 40)
+	end
+end
+
+-- Армия Альтронов (Камень Реальности): 5 усиленных часовых.
+function Handlers.UltronArmy(ctx)
+	local c = color("UltronArmy")
+	Fx.sphere(ctx.root.Position, c, 2, 16, 0.5)
+	Fx.burst(ctx.root.Position, c, 40, 25)
+	Fx.sound("Magic", ctx.root.Position, 0.9, 0.9)
+	Sentries.spawn(ctx.player, function(target, damage)
+		hit(ctx, target, damage)
+	end, 5, 12, 9, true)
+end
+
+-- Петля времени (Камень Времени).
+function Handlers.InfinityRewind(ctx)
+	Thanos.rewind(ctx, 4, color("InfinityRewind"))
+end
+
+-- Жатва Камня Души.
+function Handlers.SoulSiphon(ctx)
+	local radius = Abilities.ById.SoulSiphon.range
+	local c = color("SoulSiphon")
+	Fx.sound("Magic", ctx.root.Position, 1, 0.5)
+	Fx.shockwave(ctx.root.Position - Vector3.new(0, 2.5, 0), c, radius)
+	Kit.drainAll(ctx, Damage.inRadius(ctx.root.Position, radius, ctx.character), 25, c)
+end
+
+-- Конец мультивселенной: волны всех шести камней и финальный белый взрыв.
+function Handlers.MultiverseEnd(ctx)
+	local radius = Abilities.ById.MultiverseEnd.range
+	Status.apply(ctx.humanoid, "Stun", 2.4)
+	for _, player in Kit.playersNear(ctx.root.Position, radius * 1.5) do
+		Kit.screenFx:FireClient(player, "MultiverseEnd", ctx.root.Position)
+	end
+	Damage.knockback(ctx.root, Vector3.new(0, 18, 0), 0.5)
+
+	for _, stone in Items.Stones do
+		task.wait(0.3)
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local center = ctx.root.Position
+		Fx.shockwave(center - Vector3.new(0, 2.5, 0), stone.color, radius)
+		Fx.sphere(center, stone.color, 3, radius * 0.5, 0.4)
+		Fx.flash(center, stone.color, 40, 0.35)
+		Fx.sound("Wave", center, 0.8, 0.8 + math.random() * 0.4)
+		for _, target in Damage.inRadius(center, radius, ctx.character) do
+			hit(ctx, target, 10, stone.color)
+			Fx.burst(target.root.Position, stone.color, 8, 15)
+		end
+	end
+
+	task.wait(0.4)
+	if ctx.humanoid.Health <= 0 then
+		return
+	end
+	local center = ctx.root.Position
+	Fx.sphere(center, Color3.new(1, 1, 1), 5, radius * 2, 1.2)
+	Fx.shockwave(center - Vector3.new(0, 2.5, 0), Color3.new(1, 1, 1), radius)
+	Fx.flash(center, Color3.new(1, 1, 1), 60, 1.5)
+	Fx.burst(center, Color3.new(1, 1, 1), 120, 80)
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		hit(ctx, target, 20, Color3.new(1, 1, 1))
+		Damage.pushAway(target, center, 100, 50)
+	end
+end
+
+return { Handlers = Handlers }
