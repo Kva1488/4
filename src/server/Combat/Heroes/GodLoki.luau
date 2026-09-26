@@ -233,4 +233,34 @@ function Handlers.GloriousPurpose(ctx)
 	end
 end
 
+-- Обрезка: дубинка TVA выбрасывает ближайшего врага в прицеле в случайную точку карты.
+function Handlers.Prune(ctx)
+	local orange = Color3.fromRGB(255, 150, 50)
+	local range = Abilities.ById.Prune.range
+	local targets = Kit.inCone(ctx, range, 25)
+	table.sort(targets, function(a, b)
+		return (a.root.Position - ctx.root.Position).Magnitude
+			< (b.root.Position - ctx.root.Position).Magnitude
+	end)
+	local target = targets[1]
+	local hand = ctx.root.Position + Vector3.new(0, 1, 0)
+	Fx.sound("Beam", hand, 0.8, 1.3)
+	if not target then
+		Fx.lightning(hand, hand + Kit.aimFlat(ctx) * range, orange, 8, 0.3)
+		return
+	end
+	Fx.lightning(hand, target.root.Position, orange, 10, 0.35)
+	Fx.door(target.root.Position - Vector3.new(0, 2, 0), Kit.aimFlat(ctx), 0.8)
+	Fx.afterimage(target.model, orange, 0.8)
+	hit(ctx, target, 40, orange)
+	-- Игроков TVA действительно "обрезает" — выбрасывает далеко. Манекены остаются на месте.
+	if Players:GetPlayerFromCharacter(target.model) and target.humanoid.Health > 0 then
+		local angle = math.random() * math.pi * 2
+		local distance = 60 + math.random() * 140
+		local spot = Vector3.new(math.cos(angle) * distance, 6, math.sin(angle) * distance)
+		target.model:PivotTo(CFrame.new(spot))
+		Fx.door(spot - Vector3.new(0, 3, 0), Vector3.new(0, 0, -1), 1)
+	end
+end
+
 return { Handlers = Handlers }

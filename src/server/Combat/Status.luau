@@ -1,9 +1,15 @@
 --!strict
--- Статус-эффекты: замедление и оглушение.
--- Эффекты накладываются корректно: пересчёт идёт от базовой скорости, а не от текущей.
+-- Статус-эффекты:
+-- • Stun — полная остановка, способности недоступны;
+-- • Slow — замедление (mult — множитель скорости);
+-- • Haste — ускорение (mult > 1);
+-- • Silence — «немота»: ходить можно, способности недоступны (взлом Альтрона);
+-- • щит — снижение входящего урона на время (рывок-уклонение, вращение молота).
+-- Скорость всегда пересчитывается от базовой, поэтому эффекты корректно накладываются.
 
 local Status = {}
 
+type Kind = "Stun" | "Slow" | "Haste" | "Silence"
 type Effect = { expires: number, mult: number }
 
 local effects: { [Humanoid]: { [string]: Effect } } = setmetatable({}, { __mode = "k" }) :: any
@@ -28,10 +34,14 @@ local function recompute(humanoid: Humanoid)
 	local list: { [string]: Effect } = effects[humanoid] or {}
 	local stunned = isActive(list.Stun)
 	local slowed = isActive(list.Slow)
+	local hasted = isActive(list.Haste)
 
 	local speedMult = 1
 	if slowed then
-		speedMult = list.Slow.mult
+		speedMult *= list.Slow.mult
+	end
+	if hasted then
+		speedMult *= list.Haste.mult
 	end
 	if stunned then
 		speedMult = 0
@@ -43,10 +53,11 @@ local function recompute(humanoid: Humanoid)
 	humanoid.JumpPower = (humanoid:GetAttribute("BaseJumpPower") :: number) * jumpMult
 	humanoid:SetAttribute("Stunned", stunned)
 	humanoid:SetAttribute("Slowed", slowed)
+	humanoid:SetAttribute("Hasted", hasted)
+	humanoid:SetAttribute("Silenced", isActive(list.Silence))
 end
 
--- kind: "Stun" (полная остановка) или "Slow" (mult — множитель скорости).
-function Status.apply(humanoid: Humanoid, kind: "Stun" | "Slow", duration: number, mult: number?)
+function Status.apply(humanoid: Humanoid, kind: Kind, duration: number, mult: number?)
 	if humanoid.Health <= 0 then
 		return
 	end
@@ -74,6 +85,36 @@ end
 function Status.isStunned(humanoid: Humanoid): boolean
 	local list = effects[humanoid]
 	return list ~= nil and isActive(list.Stun)
+end
+
+-- Можно ли сейчас использовать способности.
+function Status.canCast(humanoid: Humanoid): boolean
+	local list = effects[humanoid]
+	return list == nil or not (isActive(list.Stun) or isActive(list.Silence))
+end
+
+-- Щит: входящий урон уменьшается на reduction (1 = полная неуязвимость) на duration секунд.
+function Status.shield(humanoid: Humanoid, duration: number, reduction: number)
+	local expiresAt = os.clock() + duration
+	local current = humanoid:GetAttribute("ShieldUntil")
+	if
+		typeof(current) == "number"
+		and current > expiresAt
+		and (humanoid:GetAttribute("ShieldReduction") :: number) >= reduction
+	then
+		return
+	end
+	humanoid:SetAttribute("ShieldUntil", expiresAt)
+	humanoid:SetAttribute("ShieldReduction", math.clamp(reduction, 0, 1))
+end
+
+-- Во сколько раз уменьшить входящий урон прямо сейчас (1 — без щита).
+function Status.damageMultiplier(humanoid: Humanoid): number
+	local expiresAt = humanoid:GetAttribute("ShieldUntil")
+	if typeof(expiresAt) == "number" and expiresAt > os.clock() then
+		return 1 - ((humanoid:GetAttribute("ShieldReduction") :: number?) or 0)
+	end
+	return 1
 end
 
 return Status

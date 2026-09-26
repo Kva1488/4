@@ -206,6 +206,22 @@ local function onSokovia()
 	)
 end
 
+-- Взлом Альтрона: красные помехи, способности недоступны.
+local function onHacked(duration: number)
+	showBanner(
+		"ВЗЛОМ",
+		"Способности отключены",
+		Color3.fromRGB(255, 70, 60),
+		duration - 0.3
+	)
+	for i = 0, 5 do
+		task.delay(i * 0.12, function()
+			flashScreen(Color3.fromRGB(255, 40, 40), 0.7, 0.1)
+		end)
+	end
+	tint(Color3.fromRGB(255, 190, 190), -0.5, duration)
+end
+
 -- Тор: вспышки молний и название приёма.
 local function onThunder(title: string)
 	local thunder = Color3.fromRGB(150, 210, 255)
@@ -366,6 +382,8 @@ function ScreenFxController:Start()
 			onMultiverseEnd()
 		elseif kind == "Thunder" then
 			onThunder(tostring(extra))
+		elseif kind == "Hacked" then
+			onHacked(tonumber(extra) or 3)
 		end
 	end)
 	Remotes.event("StoneCollected").OnClientEvent:Connect(onStoneCollected)

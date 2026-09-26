@@ -13,6 +13,10 @@ local Heroes = require(ReplicatedStorage.Shared.Heroes)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local DataService = require(script.Parent.Parent.Services.DataService)
+local Status = require(script.Parent.Status)
+
+-- Сколько урона нужно нанести, чтобы полностью зарядить ульту.
+local ULT_DAMAGE_TO_CHARGE = 350
 
 export type Target = {
 	model: Model,
@@ -162,12 +166,26 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 end
 
 -- Наносит урон. ForceField (защита после спавна) блокирует урон, кроме ignoreShield.
+-- Заряд ульты (0..1) хранится атрибутом игрока: он сам реплицируется на клиент для шкалы.
+function Damage.chargeUltimate(player: Player, amount: number)
+	local current = player:GetAttribute("UltCharge")
+	local value = if typeof(current) == "number" then current else 0
+	player:SetAttribute("UltCharge", math.clamp(value + amount, 0, 1))
+end
+
 function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, options: DamageOptions?)
 	if humanoid.Health <= 0 then
 		return
 	end
 	local opts: DamageOptions = options or {}
 	local before = humanoid.Health
+	-- Щит цели (уклонение, вращение молота) снижает урон. Щелчок его пробивает.
+	if not opts.ignoreShield then
+		amount *= Status.damageMultiplier(humanoid)
+		if amount <= 0 then
+			return
+		end
+	end
 	if opts.ignoreShield then
 		humanoid.Health = math.max(0, humanoid.Health - amount)
 	else
@@ -178,6 +196,7 @@ function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, optio
 		return
 	end
 	humanoid:SetAttribute("LastAttacker", attacker.UserId)
+	Damage.chargeUltimate(attacker, dealt / ULT_DAMAGE_TO_CHARGE)
 
 	local killed = humanoid.Health <= 0
 	local model = humanoid.Parent

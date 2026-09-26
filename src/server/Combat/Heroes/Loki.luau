@@ -50,8 +50,15 @@ function Handlers.DaggerSlash(ctx)
 	Fx.slash(origin, if surprise then GREEN else STEEL, 5.5, flip)
 	Fx.sound("Punch", hitPoint, 0.6, 1.3)
 
+	-- Змеиный облик удваивает следующий удар.
+	local snakeUntil = ctx.character:GetAttribute("SnakeUntil")
+	local snake = typeof(snakeUntil) == "number" and snakeUntil > os.clock()
 	for _, target in Damage.inRadius(hitPoint, 4.5, ctx.character) do
-		local mult = if surprise then 3 elseif isBackstab(ctx, target) then 2 else 1
+		local mult = (if surprise then 3 elseif isBackstab(ctx, target) then 2 else 1)
+			* (if snake then 2 else 1)
+		if snake then
+			ctx.character:SetAttribute("SnakeUntil", nil)
+		end
 		hit(ctx, target, 9 * mult, if mult > 1 then GREEN else STEEL)
 		Fx.burst(target.root.Position, if mult > 1 then GREEN else STEEL, 10 * mult, 20)
 		if surprise then
@@ -232,6 +239,25 @@ function Handlers.Casket(ctx)
 		Status.apply(target.humanoid, "Stun", 3)
 		Fx.crystal(target.root.Position, c, 3)
 	end
+end
+
+-- Змея: ускорение и удвоенный следующий удар. Локи уменьшается, если это возможно.
+function Handlers.SnakeForm(ctx)
+	local duration = 4
+	local model = ctx.character
+	Fx.burst(ctx.root.Position, GREEN, 40, 20)
+	Fx.afterimage(model, GREEN, 0.5)
+	Fx.sound("Magic", ctx.root.Position, 0.8, 1.6)
+	Status.apply(ctx.humanoid, "Haste", duration, 1.6)
+	model:SetAttribute("SnakeUntil", os.clock() + duration)
+	local original = model:GetScale()
+	pcall(model.ScaleTo, model, original * 0.6)
+	task.delay(duration, function()
+		if model.Parent then
+			pcall(model.ScaleTo, model, original)
+			Fx.burst(model:GetPivot().Position, GREEN, 25, 15)
+		end
+	end)
 end
 
 return { Handlers = Handlers }

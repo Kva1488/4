@@ -470,4 +470,79 @@ function Handlers.AsgardWrath(ctx)
 	end
 end
 
+---------------------------------------------------------------- НОВЫЕ СПОСОБНОСТИ (E)
+
+-- Вращение молота: щит на 2.5 секунды и удары по всем рядом.
+function Handlers.HammerSpin(ctx)
+	local radius = Abilities.ById.HammerSpin.range
+	Status.shield(ctx.humanoid, 2.5, 0.7)
+	Fx.sound("Wave", ctx.root.Position, 0.6, 1.4)
+	for tick = 1, 5 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local center = ctx.root.Position
+		Fx.ring(center, THUNDER, radius, 0.4)
+		for i = 0, 2 do
+			Fx.slash(ctx.root.CFrame * CFrame.Angles(0, tick + i * 2.1, 0), STEEL, 6, i % 2 == 0)
+		end
+		for _, target in Damage.inRadius(center, radius, ctx.character) do
+			hit(ctx, target, 6)
+		end
+		task.wait(0.5)
+	end
+end
+
+-- Громовой рывок сквозь врагов.
+function Handlers.ThunderDash(ctx)
+	local range = Abilities.ById.ThunderDash.range
+	local origin = ctx.root.Position
+	local direction = Kit.aimFlat(ctx)
+	local targets, finish = Kit.alongLine(ctx, origin, direction, range, 5)
+	for i = 1, 4 do
+		local point = origin:Lerp(finish, i / 4)
+		Fx.afterimage(ctx.character, THUNDER, 0.4)
+		Fx.burst(point, THUNDER, 10, 15, "Spark")
+	end
+	Fx.lightning(origin, finish, THUNDER, 10, 0.35)
+	Fx.lightning(origin, finish, WHITE, 10, 0.25)
+	Fx.sound("Beam", origin, 0.9, 0.7)
+	ctx.character:PivotTo(CFrame.lookAt(finish, finish + direction))
+	for _, target in targets do
+		hit(ctx, target, 25)
+		Fx.lightning(target.root.Position + Vector3.new(0, 8, 0), target.root.Position, THUNDER, 5, 0.25)
+	end
+end
+
+-- Вихрь: враги затягиваются к Тору и получают урон.
+function Handlers.Tempest(ctx)
+	local radius = Abilities.ById.Tempest.range
+	local center = ctx.root.Position
+	Fx.sound("Wave", center, 1, 1.1)
+	for i = 1, 3 do
+		Fx.ring(center + Vector3.new(0, i * 2 - 3, 0), THUNDER, radius * (1 - i * 0.2), 0.6)
+	end
+	for i = 1, 10 do
+		local angle = (i / 10) * math.pi * 2
+		Fx.lightning(
+			center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius),
+			center,
+			THUNDER,
+			6,
+			0.4
+		)
+	end
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		local pull = (center - target.root.Position) * Vector3.new(1, 0, 1)
+		if pull.Magnitude > 3 then
+			Damage.knockback(
+				target.root,
+				pull.Unit * math.min(pull.Magnitude * 4, 80) + Vector3.new(0, 20, 0),
+				0.25
+			)
+		end
+		hit(ctx, target, 30)
+	end
+end
+
 return { Handlers = Handlers }

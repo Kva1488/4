@@ -211,4 +211,22 @@ function Handlers.SokoviaRise(ctx)
 	end
 end
 
+-- Взлом: урон и 3 секунды без способностей у всех в зоне.
+function Handlers.Hack(ctx)
+	local radius = 12
+	local center = ctx.target
+	Fx.sound("Magic", center, 0.9, 1.8)
+	Fx.ring(center, RED, radius, 0.5)
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		Fx.lightning(ctx.root.Position + Vector3.new(0, 1, 0), target.root.Position, RED, 10, 0.4)
+		hit(ctx, target, 15)
+		Status.apply(target.humanoid, "Silence", 3)
+		Fx.clock(target.root.Position + Vector3.new(0, 1, 0), RED, 3, 3)
+		local victim = game:GetService("Players"):GetPlayerFromCharacter(target.model)
+		if victim then
+			Kit.screenFx:FireClient(victim, "Hacked", center, 3)
+		end
+	end
+end
+
 return { Handlers = Handlers }

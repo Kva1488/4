@@ -10,6 +10,7 @@ local Items = require(ReplicatedStorage.Shared.Items)
 local Damage = require(script.Parent.Parent.Damage)
 local Fx = require(script.Parent.Parent.Fx)
 local Kit = require(script.Parent.Parent.Kit)
+local Projectile = require(script.Parent.Parent.Projectile)
 local Sentries = require(script.Parent.Parent.Sentries)
 local Status = require(script.Parent.Parent.Status)
 local Thanos = require(script.Parent.Thanos)
@@ -164,6 +165,33 @@ function Handlers.MultiverseEnd(ctx)
 		hit(ctx, target, 20, Color3.new(1, 1, 1))
 		Damage.pushAway(target, center, 100, 50)
 	end
+end
+
+-- Бросок двуглавого копья с возвратом.
+function Handlers.SpearThrow(ctx)
+	local gold = color("SpearThrow")
+	local origin = ctx.root.Position + Vector3.new(0, 1.2, 0)
+	local function spear(): BasePart
+		local part = Instance.new("Part")
+		part.Size = Vector3.new(0.3, 0.3, 5)
+		part.Material = Enum.Material.Neon
+		part.Color = gold
+		return part
+	end
+	Fx.sound("Beam", origin, 0.7, 0.8)
+	Projectile.boomerang({
+		origin = origin,
+		direction = Kit.aim3D(ctx, origin),
+		speed = 110,
+		range = Abilities.ById.SpearThrow.range,
+		radius = 3,
+		owner = ctx.character,
+		pierce = true,
+		onHit = function(target, position)
+			hit(ctx, target, 30)
+			Fx.burst(position, gold, 15, 30, "Spark")
+		end,
+	}, ctx.root, spear)
 end
 
 return { Handlers = Handlers }

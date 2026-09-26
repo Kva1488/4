@@ -311,6 +311,30 @@ function Handlers.Snap(ctx)
 	end
 end
 
+-- Двуклинковый меч из «Финала»: вихрь из трёх ударов вокруг.
+function Handlers.DoubleBlade(ctx)
+	local radius = Abilities.ById.DoubleBlade.range
+	local steel = color("DoubleBlade")
+	for spin = 1, 3 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local base = ctx.root.CFrame
+		for i = 0, 3 do
+			Fx.slash(base * CFrame.Angles(0, i * math.pi / 2 + spin, 0), steel, 8, i % 2 == 0)
+		end
+		Fx.ring(ctx.root.Position - Vector3.new(0, 2, 0), steel, radius, 0.25)
+		Fx.sound("Punch", ctx.root.Position, 0.7, 0.9 + spin * 0.1)
+		for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+			hit(ctx, target, 14, steel)
+			if spin == 3 then
+				Damage.pushAway(target, ctx.root.Position, 70, 25)
+			end
+		end
+		task.wait(0.2)
+	end
+end
+
 return {
 	Handlers = Handlers,
 	rewind = rewind,

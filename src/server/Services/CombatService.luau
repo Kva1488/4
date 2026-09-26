@@ -13,6 +13,7 @@ local Shop = require(ReplicatedStorage.Shared.Shop)
 
 local AbilityHandlers = require(script.Parent.Parent.Combat.AbilityHandlers)
 local Status = require(script.Parent.Parent.Combat.Status)
+local Damage = require(script.Parent.Parent.Combat.Damage)
 local DataService = require(script.Parent.DataService)
 
 -- Небольшой запас на сетевую задержку, чтобы кнопка не "проглатывалась".
@@ -91,13 +92,23 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 	if not (character and humanoid and root and root:IsA("BasePart")) or humanoid.Health <= 0 then
 		return
 	end
-	if Status.isStunned(humanoid) then
+	-- Оглушение и "немота" (взлом Альтрона) блокируют способности. Рывок работает под немотой.
+	if Status.isStunned(humanoid) or (abilityId ~= "Dodge" and not Status.canCast(humanoid)) then
 		return
 	end
 
 	local data = DataService:Get(player)
 	-- Способность должна принадлежать текущему герою и быть открыта.
-	if not data or ability.hero ~= data.Hero or not Abilities.isUnlocked(ability, data.Stones) then
+	if not data then
+		return
+	end
+	local ownsAbility = ability.hero == data.Hero or ability.hero == "All"
+	if not ownsAbility or not Abilities.isUnlocked(ability, data.Stones) then
+		return
+	end
+	-- Ульта требует полного заряда (копится уроном и со временем).
+	local isUltimate = ability.kind == "ultimate"
+	if isUltimate and ((player:GetAttribute("UltCharge") :: number?) or 0) < 1 then
 		return
 	end
 
@@ -112,6 +123,9 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 	end
 	local cooldown = ability.cooldown * Shop.cooldownMult(data.Upgrades)
 	playerCooldowns[abilityId] = now + cooldown
+	if isUltimate then
+		player:SetAttribute("UltCharge", 0)
+	end
 
 	Remotes.event("AbilityCast"):FireClient(player, abilityId, cooldown)
 	setPose(character, abilityId)
@@ -149,6 +163,16 @@ function CombatService:Init()
 end
 
 function CombatService:Start()
+	-- Заряд ульты понемногу растёт сам: полная шкала примерно за 90 секунд без боя.
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			for _, player in Players:GetPlayers() do
+				Damage.chargeUltimate(player, 1 / 90)
+			end
+		end
+	end)
+
 	Players.PlayerRemoving:Connect(function(player)
 		cooldowns[player] = nil
 	end)

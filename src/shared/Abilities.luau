@@ -5,14 +5,8 @@
 
 export type Ability = {
 	id: string,
-	hero: "Thanos"
-		| "Loki"
-		| "GodLoki"
-		| "Ultron"
-		| "InfinityUltron"
-		| "Thor"
-		| "ThorStormbreaker"
-		| "ThorBoth",
+	-- id героя из Shared/Heroes или "All" — общая способность всех героев (рывок-уклонение).
+	hero: string,
 	name: string,
 	description: string,
 	input: Enum.KeyCode | Enum.UserInputType,
@@ -869,6 +863,131 @@ local List: { Ability } = {
 	},
 }
 
+-- Новые способности (E) и общий рывок (Q).
+for _, extra in
+	({
+		{
+			id = "Dodge",
+			hero = "All",
+			name = "Рывок",
+			description = "Быстрый рывок в сторону движения. На мгновение ты неуязвим.",
+			input = K.Q,
+			keyLabel = "Q",
+			cooldown = 1.6,
+			requires = {},
+			color = Color3.fromRGB(230, 235, 255),
+			range = 0,
+			kind = "basic",
+		},
+		{
+			id = "DoubleBlade",
+			hero = "Thanos",
+			name = "Двуклинковый меч",
+			description = "Меч Таноса из «Финала»: вихрь из трёх ударов вокруг, 3×14 урона и отбрасывание.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 9,
+			requires = {},
+			color = Color3.fromRGB(190, 200, 215),
+			range = 9,
+			kind = "stone",
+		},
+		{
+			id = "SnakeForm",
+			hero = "Loki",
+			name = "Змея",
+			description = "«Помнишь, я превратился в змею?» Локи ускоряется на 4 секунды, а следующий удар кинжалом наносит ×2.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 14,
+			requires = {},
+			color = LOKI_GREEN,
+			range = 0,
+			kind = "stone",
+		},
+		{
+			id = "Prune",
+			hero = "GodLoki",
+			name = "Обрезка",
+			description = "Дубинка TVA: ближайший враг в прицеле получает 40 урона и выбрасывается в случайную точку карты.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 14,
+			requires = {},
+			color = Color3.fromRGB(255, 150, 50),
+			range = 40,
+			kind = "stone",
+		},
+		{
+			id = "Hack",
+			hero = "Ultron",
+			name = "Взлом",
+			description = "Альтрон взламывает врагов в зоне прицела: 15 урона и 3 секунды без способностей.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 14,
+			requires = {},
+			color = ULTRON_RED,
+			range = 70,
+			kind = "stone",
+		},
+		{
+			id = "SpearThrow",
+			hero = "InfinityUltron",
+			name = "Бросок копья",
+			description = "Двуглавое копьё пробивает всех на линии и возвращается, 30 урона.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 6,
+			requires = {},
+			color = Color3.fromRGB(235, 185, 60),
+			range = 100,
+			kind = "stone",
+		},
+		{
+			id = "HammerSpin",
+			hero = "Thor",
+			name = "Вращение молота",
+			description = "Мьёльнир вращается щитом: 2.5 секунды урон по тебе меньше на 70%, а враги рядом получают удары.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 12,
+			requires = {},
+			color = THUNDER,
+			range = 8,
+			kind = "stone",
+		},
+		{
+			id = "ThunderDash",
+			hero = "ThorStormbreaker",
+			name = "Громовой рывок",
+			description = "Рывок сквозь врагов: всех на пути бьёт молнией на 25 урона.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 8,
+			requires = {},
+			color = THUNDER,
+			range = 35,
+			kind = "stone",
+		},
+		{
+			id = "Tempest",
+			hero = "ThorBoth",
+			name = "Вихрь",
+			description = "Молот и топор раскручивают вихрь: враги в радиусе 20 затягиваются к Тору и получают 30 урона.",
+			input = K.E,
+			keyLabel = "E",
+			cooldown = 12,
+			requires = {},
+			color = THUNDER,
+			range = 20,
+			kind = "stone",
+		},
+	}) :: { any }
+do
+	table.insert(List, extra :: Ability)
+end
+
 local ById: { [string]: Ability } = {}
 for _, ability in List do
 	ById[ability.id] = ability
@@ -884,6 +1003,12 @@ function Abilities.forHero(heroId: string): { Ability }
 	local result = {}
 	for _, ability in List do
 		if ability.hero == heroId then
+			table.insert(result, ability)
+		end
+	end
+	-- Общие способности (рывок) — в конце панели.
+	for _, ability in List do
+		if ability.hero == "All" then
 			table.insert(result, ability)
 		end
 	end

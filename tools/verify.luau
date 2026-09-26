@@ -64,6 +64,8 @@ local expected = {
 	["ServerScriptService.Server.Combat.Heroes.InfinityUltron"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Sentries"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Heroes.Thor"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.Common"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.DoubleJumpController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -117,7 +119,7 @@ local Heroes = loadModule("src/shared/Heroes.luau")
 check(#Items.Stones == 6, "6 stones")
 local keys = {}
 for _, a in Abilities.List do
-	check(Heroes.ById[a.hero] ~= nil, `{a.id} belongs to existing hero {a.hero}`)
+	check(a.hero == "All" or Heroes.ById[a.hero] ~= nil, `{a.id} belongs to existing hero {a.hero}`)
 	check(string.find(handlersSource, "function Handlers." .. a.id .. "%(") ~= nil, `handler for {a.id}`)
 	-- Клавиши уникальны в пределах героя (у разных героев могут совпадать).
 	local key = a.hero .. ":" .. tostring(a.input)
@@ -128,8 +130,27 @@ for _, a in Abilities.List do
 	end
 	check(#a.requires == 0 or a.hero == "Thanos", `only Thanos abilities need stones ({a.id})`)
 end
+-- Общие способности (рывок) не должны занимать клавиши героев.
+local shared = {}
+for _, a in Abilities.List do
+	if a.hero == "All" then
+		shared[tostring(a.input)] = a.id
+	end
+end
+for _, a in Abilities.List do
+	if a.hero ~= "All" then
+		check(shared[tostring(a.input)] == nil, `{a.id} key does not clash with shared abilities`)
+	end
+end
 for _, hero in Heroes.List do
-	local count = #Abilities.forHero(hero.id)
+	local list = Abilities.forHero(hero.id)
+	local hasDodge, hasE = false, false
+	for _, a in list do
+		hasDodge = hasDodge or a.id == "Dodge"
+		hasE = hasE or a.keyLabel == "E"
+	end
+	check(hasDodge and hasE, `{hero.id} has dodge (Q) and a new E ability`)
+	local count = #list
 	check(count >= 6, `{hero.id} has {count} abilities`)
 end
 check(Heroes.isUnlocked(Heroes.ById.Loki, {}), "Loki unlocked from start")

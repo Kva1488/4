@@ -119,6 +119,14 @@ local function flashLocked(slot: Slot)
 	end)
 end
 
+-- Заряд ульты (0..1): сервер хранит его атрибутом игрока.
+local function ultCharge(): number
+	local value = player:GetAttribute("UltCharge")
+	return if typeof(value) == "number" then value else 0
+end
+
+local ultWasReady = false
+
 local function activate(slot: Slot, fromButton: boolean)
 	local ability = slot.ability
 	if not Abilities.isUnlocked(ability, PlayerState.stones()) then
@@ -126,6 +134,13 @@ local function activate(slot: Slot, fromButton: boolean)
 		return
 	end
 	if os.clock() < (cooldownEnds[ability.id] or 0) then
+		return
+	end
+	if ability.kind == "ultimate" and ultCharge() < 1 then
+		NotifyController.show(
+			`Ульта заряжена на {math.floor(ultCharge() * 100)}% — наноси урон`,
+			ability.color
+		)
 		return
 	end
 	local target = getTarget(fromButton)
@@ -361,6 +376,29 @@ function AbilityController:Start()
 				then tostring(math.ceil(remaining))
 				elseif remaining > 0 and cooldown >= 1 then string.format("%.1f", remaining)
 				else ""
+
+			-- Ульта: затемнение показывает незаряженную часть, в центре — процент.
+			if slot.ability.kind == "ultimate" then
+				local charge = ultCharge()
+				local fraction = math.max(remaining / cooldown, 1 - charge)
+				slot.cooldown.Size = UDim2.fromScale(1, fraction)
+				if remaining <= 0 and charge < 1 then
+					slot.cooldownText.Text = `{math.floor(charge * 100)}%`
+				end
+				local ready = charge >= 1 and remaining <= 0
+				if ready and not ultWasReady then
+					NotifyController.show(
+						`⚡ Ульта «{slot.ability.name}» готова! [{slot.ability.keyLabel}]`,
+						slot.ability.color
+					)
+					ScreenFxController.fovPunch(6)
+				end
+				ultWasReady = ready
+				-- Готовая ульта пульсирует обводкой.
+				if ready then
+					slot.stroke.Thickness = 2.5 + math.sin(now * 6) * 1.5
+				end
+			end
 
 			local id = slot.ability.id
 			if remaining > 0 then
