@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Abilities = require(ReplicatedStorage.Shared.Abilities)
@@ -15,12 +16,14 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local PlayerState = require(script.Parent.Parent.PlayerState)
 local Ui = require(script.Parent.Parent.Ui)
 local NotifyController = require(script.Parent.NotifyController)
+local ScreenFxController = require(script.Parent.ScreenFxController)
 
 local player = Players.LocalPlayer
 
 local SLOT = 58
 local GAP = 6
 local SHAKE_ON = { PowerWave = 0.4, Meteor = 0.6, Snap = 1.2 }
+local FOV_PUNCH = { basic = 2, stone = 6, combo = 10, ultimate = 0 }
 
 type Slot = {
 	ability: Abilities.Ability,
@@ -35,6 +38,7 @@ local AbilityController = {}
 
 local slots: { Slot } = {}
 local cooldownEnds: { [string]: number } = {}
+local cooldownDurations: { [string]: number } = {}
 local useAbility: RemoteEvent
 
 local function requirementText(ability: Abilities.Ability): string
@@ -208,6 +212,23 @@ local function createSlot(ability: Abilities.Ability, index: number, parent: Ins
 	return slot
 end
 
+-- Кнопка способности "вспыхивает" при использовании.
+local function pulseSlot(abilityId: string)
+	for _, slot in slots do
+		if slot.ability.id == abilityId then
+			local uiScale = slot.button:FindFirstChildOfClass("UIScale")
+				or Ui.create("UIScale", { Parent = slot.button }) :: UIScale
+			uiScale.Scale = 1.18
+			TweenService:Create(uiScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+			slot.stroke.Thickness = 4
+			TweenService:Create(slot.stroke, TweenInfo.new(0.3), { Thickness = 2 }):Play()
+		end
+	end
+end
+
+-- Когда способность перезарядилась — короткая вспышка обводки.
+local readyFlashed: { [string]: boolean } = {}
+
 local function refreshLocks()
 	local stones = PlayerState.stones()
 	for _, slot in slots do
@@ -277,14 +298,19 @@ function AbilityController:Start()
 	refreshLocks()
 	PlayerState.Changed:Connect(refreshLocks)
 
-	Remotes.event("AbilityCast").OnClientEvent:Connect(function(abilityId: string)
+	Remotes.event("AbilityCast").OnClientEvent:Connect(function(abilityId: string, cooldown: number?)
 		local ability = Abilities.ById[abilityId]
 		if ability then
-			cooldownEnds[abilityId] = os.clock() + ability.cooldown
+			-- Сервер присылает перезарядку с учётом прокачки "Скорость".
+			local duration = cooldown or ability.cooldown
+			cooldownDurations[abilityId] = duration
+			cooldownEnds[abilityId] = os.clock() + duration
 			local strength = SHAKE_ON[abilityId]
 			if strength then
 				shake(strength)
 			end
+			ScreenFxController.fovPunch(FOV_PUNCH[ability.kind] or 3)
+			pulseSlot(abilityId)
 		end
 	end)
 
@@ -304,13 +330,25 @@ function AbilityController:Start()
 	RunService.RenderStepped:Connect(function()
 		local now = os.clock()
 		for _, slot in slots do
-			local cooldown = slot.ability.cooldown
+			local cooldown = cooldownDurations[slot.ability.id] or slot.ability.cooldown
 			local remaining = math.max(0, (cooldownEnds[slot.ability.id] or 0) - now)
 			slot.cooldown.Size = UDim2.fromScale(1, remaining / cooldown)
 			slot.cooldownText.Text = if remaining >= 1
 				then tostring(math.ceil(remaining))
 				elseif remaining > 0 and cooldown >= 1 then string.format("%.1f", remaining)
 				else ""
+
+			local id = slot.ability.id
+			if remaining > 0 then
+				readyFlashed[id] = false
+			elseif readyFlashed[id] == false and cooldown >= 3 then
+				readyFlashed[id] = true
+				slot.stroke.Color = Color3.new(1, 1, 1)
+				slot.stroke.Thickness = 4
+				TweenService
+					:Create(slot.stroke, TweenInfo.new(0.4), { Color = slot.ability.color, Thickness = 2 })
+					:Play()
+			end
 		end
 	end)
 end

@@ -1,6 +1,7 @@
 --!strict
 -- Поиск целей, урон, лечение, отбрасывание и награды за убийства.
 -- Цели: персонажи других игроков (PvP) и модели с тегом "Enemy" (манекены).
+-- Каждый удар рассылается клиентам (цифры урона, хитмаркер), а убийство попадает в ленту убийств.
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
@@ -8,6 +9,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local DataService = require(script.Parent.Parent.Services.DataService)
 
@@ -17,7 +19,16 @@ export type Target = {
 	root: BasePart,
 }
 
+export type DamageOptions = {
+	ignoreShield: boolean?, -- пробивает ForceField после спавна
+	source: string?, -- название способности (для ленты убийств)
+	color: Color3?, -- цвет цифр урона
+}
+
 local Damage = {}
+
+local hitEvent = Remotes.event("Hit")
+local killfeedEvent = Remotes.event("Killfeed")
 
 local function asTarget(model: Model?): Target?
 	if not model then
@@ -76,7 +87,15 @@ function Damage.fromPart(part: BasePart, exclude: Model?): Target?
 	return asTarget(model)
 end
 
-local function reward(attacker: Player, victim: Humanoid)
+local function displayName(humanoid: Humanoid): string
+	local victimPlayer = Players:GetPlayerFromCharacter(humanoid.Parent)
+	if victimPlayer then
+		return victimPlayer.DisplayName
+	end
+	return if humanoid.DisplayName ~= "" then humanoid.DisplayName else (humanoid.Parent :: Instance).Name
+end
+
+local function onKill(attacker: Player, victim: Humanoid, source: string?, color: Color3?)
 	if victim:GetAttribute("Rewarded") then
 		return
 	end
@@ -86,26 +105,52 @@ local function reward(attacker: Player, victim: Humanoid)
 	DataService:Update(attacker, function(data)
 		data.Coins += amount
 	end)
+	killfeedEvent:FireAllClients(
+		attacker.DisplayName,
+		displayName(victim),
+		source or "",
+		color or Color3.new(1, 1, 1)
+	)
 end
 
 -- Наносит урон. ForceField (защита после спавна) блокирует урон, кроме ignoreShield.
-function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, ignoreShield: boolean?)
+function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, options: DamageOptions?)
 	if humanoid.Health <= 0 then
 		return
 	end
-	if ignoreShield then
+	local opts: DamageOptions = options or {}
+	local before = humanoid.Health
+	if opts.ignoreShield then
 		humanoid.Health = math.max(0, humanoid.Health - amount)
 	else
 		humanoid:TakeDamage(amount)
 	end
+	local dealt = before - humanoid.Health
+	if dealt <= 0 then
+		return
+	end
 	humanoid:SetAttribute("LastAttacker", attacker.UserId)
-	if humanoid.Health <= 0 then
-		reward(attacker, humanoid)
+
+	local killed = humanoid.Health <= 0
+	local model = humanoid.Parent
+	local root = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		hitEvent:FireAllClients(
+			root.Position,
+			dealt,
+			opts.color or Color3.new(1, 1, 1),
+			attacker.UserId,
+			model,
+			killed
+		)
+	end
+	if killed then
+		onKill(attacker, humanoid, opts.source, opts.color)
 	end
 end
 
 function Damage.heal(humanoid: Humanoid, amount: number)
-	if humanoid.Health > 0 then
+	if humanoid.Health > 0 and amount > 0 then
 		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + amount)
 	end
 end

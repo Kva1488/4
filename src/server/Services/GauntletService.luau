@@ -1,12 +1,14 @@
 --!strict
--- Надевает на правую руку каждого персонажа золотую Перчатку Бесконечности.
+-- Надевает на правую руку каждого персонажа Перчатку Бесконечности в выбранном скине.
 -- Собранные камни светятся в перчатке, несобранные — пустые гнёзда.
+-- Чем больше камней, тем ярче светится перчатка.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
+local Shop = require(ReplicatedStorage.Shared.Shop)
 
 local DataService = require(script.Parent.DataService)
 
@@ -42,11 +44,31 @@ local function weldedPart(
 	return part
 end
 
-local function refreshGems(character: Model, stones: { [string]: boolean })
+local function refresh(character: Model, data: Config.PlayerData?)
 	local gauntlet = character:FindFirstChild("InfinityGauntlet")
 	if not gauntlet then
 		return
 	end
+	local stones = if data then data.Stones else {}
+	local skin = Shop.SkinById[if data then data.EquippedSkin else Shop.DefaultSkin]
+		or Shop.SkinById[Shop.DefaultSkin]
+
+	local glove = gauntlet:FindFirstChild("Glove") :: Part?
+	if glove then
+		glove.Color = skin.color
+		glove.Material = skin.material
+		glove.Reflectance = skin.reflectance
+		-- Радужный скин переливается на клиентах (GauntletFxController).
+		glove:SetAttribute("Rainbow", skin.rainbow == true)
+		local light = glove:FindFirstChildOfClass("PointLight")
+		if light then
+			local count = Items.countStones(stones)
+			light.Color = skin.color
+			light.Brightness = 0.5 + count * 0.4
+			light.Range = 4 + count * 1.5
+		end
+	end
+
 	for _, stone in Items.Stones do
 		local gem = gauntlet:FindFirstChild(stone.id) :: Part?
 		if gem then
@@ -77,9 +99,23 @@ local function build(player: Player, character: Model)
 	local gloveCFrame = if isR6 then hand.CFrame * CFrame.new(0, -0.65, 0) else hand.CFrame
 
 	local glove = weldedPart("Glove", folder, hand, gloveCFrame, gloveSize)
-	glove.Color = Items.Gauntlet.color
-	glove.Material = Enum.Material.Metal
-	glove.Reflectance = 0.2
+
+	local light = Instance.new("PointLight")
+	light.Shadows = false
+	light.Parent = glove
+
+	-- Манжета перчатки.
+	local cuffCFrame = gloveCFrame * CFrame.new(0, gloveSize.Y * 0.55, 0) * CFrame.Angles(0, 0, math.rad(90))
+	local cuff = weldedPart(
+		"Cuff",
+		folder,
+		glove,
+		cuffCFrame,
+		Vector3.new(gloveSize.Y * 0.25, gloveSize.X * 1.15, gloveSize.Z * 1.15)
+	)
+	cuff.Shape = Enum.PartType.Cylinder
+	cuff.Color = Color3.fromRGB(40, 32, 20)
+	cuff.Material = Enum.Material.Metal
 
 	-- Шесть гнёзд для камней: 5 на тыльной стороне, 1 крупный в центре.
 	local gemSize = math.min(gloveSize.X, gloveSize.Z) * 0.22
@@ -103,8 +139,7 @@ local function build(player: Player, character: Model)
 
 	folder.Parent = character
 
-	local data = DataService:Get(player)
-	refreshGems(character, if data then data.Stones else {})
+	refresh(character, DataService:Get(player))
 end
 
 function GauntletService:Start()
@@ -123,7 +158,7 @@ function GauntletService:Start()
 
 	DataService:OnChanged(function(player, data: Config.PlayerData)
 		if player.Character then
-			refreshGems(player.Character, data.Stones)
+			refresh(player.Character, data)
 		end
 	end)
 end

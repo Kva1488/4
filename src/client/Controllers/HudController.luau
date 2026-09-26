@@ -1,56 +1,168 @@
 --!strict
--- Простой HUD: счётчик монет в левом верхнем углу.
+-- HUD слева сверху: монеты (с анимацией счёта и всплывающими "+N"), камни и полоска здоровья.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Items = require(ReplicatedStorage.Shared.Items)
+
+local PlayerState = require(script.Parent.Parent.PlayerState)
+local Ui = require(script.Parent.Parent.Ui)
 
 local player = Players.LocalPlayer
 
 local HudController = {}
 
-local function createHud(): TextLabel
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "Hud"
-	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = false
+local coinsLabel: TextLabel
+local stonesLabel: TextLabel
+local coinsRow: Frame
+local healthFill: Frame
+local healthText: TextLabel
 
-	local label = Instance.new("TextLabel")
-	label.Name = "Coins"
-	label.AnchorPoint = Vector2.new(0, 0)
-	label.Position = UDim2.fromOffset(16, 16)
-	label.Size = UDim2.fromOffset(180, 44)
-	label.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-	label.BackgroundTransparency = 0.25
-	label.TextColor3 = Color3.fromRGB(255, 215, 90)
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.Text = "🪙 0"
-	label.Parent = gui
+local shownCoins = 0
+local targetCoins = 0
+local lastCoins: number? = nil
 
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = label
+local function popup(amount: number)
+	local positive = amount > 0
+	local label = Ui.label({
+		Size = UDim2.fromOffset(90, 22),
+		Position = UDim2.new(1, 8, 0.5, -11),
+		Text = (if positive then "+" else "") .. tostring(amount),
+		TextColor3 = if positive then Color3.fromRGB(255, 225, 100) else Color3.fromRGB(255, 110, 110),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBlack,
+		Parent = coinsRow,
+	})
+	Ui.create("UIStroke", { Thickness = 1.5, Transparency = 0.3, Parent = label })
+	TweenService:Create(label, TweenInfo.new(1, Enum.EasingStyle.Quad), {
+		Position = UDim2.new(1, 8, 0.5, -40),
+		TextTransparency = 1,
+	}):Play()
+	task.delay(1, function()
+		label:Destroy()
+	end)
 
-	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft = UDim.new(0, 10)
-	padding.PaddingRight = UDim.new(0, 10)
-	padding.PaddingTop = UDim.new(0, 6)
-	padding.PaddingBottom = UDim.new(0, 6)
-	padding.Parent = label
+	-- Иконка монеты "подпрыгивает".
+	local scale = coinsRow:FindFirstChildOfClass("UIScale") :: UIScale
+	scale.Scale = 1.15
+	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+end
 
-	gui.Parent = player:WaitForChild("PlayerGui")
-	return label
+local function onData()
+	local data = PlayerState.get()
+	if not data then
+		return
+	end
+	targetCoins = data.Coins
+	if lastCoins and data.Coins ~= lastCoins then
+		popup(data.Coins - lastCoins)
+	end
+	lastCoins = data.Coins
+	stonesLabel.Text = `💎 {Items.countStones(data.Stones)}/{#Items.Stones}`
+end
+
+local function row(order: number, parent: Instance): Frame
+	return Ui.create("Frame", {
+		Size = UDim2.fromOffset(170, 38),
+		BackgroundColor3 = Ui.Colors.Panel,
+		BackgroundTransparency = 0.2,
+		LayoutOrder = order,
+		Parent = parent,
+	}, { Ui.corner(10), Ui.stroke(Ui.Colors.Gold, 1.5, 0.5), Ui.create("UIScale", {}) })
+end
+
+local function bindHealth(character: Model)
+	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+	if not humanoid then
+		return
+	end
+	local function update()
+		local ratio = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+		TweenService:Create(healthFill, TweenInfo.new(0.2), {
+			Size = UDim2.fromScale(ratio, 1),
+			BackgroundColor3 = Color3.fromRGB(230, 60, 60):Lerp(Color3.fromRGB(80, 220, 110), ratio),
+		}):Play()
+		healthText.Text = `{math.ceil(humanoid.Health)} / {math.floor(humanoid.MaxHealth)}`
+	end
+	humanoid.HealthChanged:Connect(update)
+	humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(update)
+	update()
 end
 
 function HudController:Start()
-	local label = createHud()
-	local leaderstats = player:WaitForChild("leaderstats")
-	local coins = leaderstats:WaitForChild("Coins") :: IntValue
+	pcall(function()
+		game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+	end)
 
-	local function refresh()
-		label.Text = `🪙 {coins.Value}`
+	local gui = Ui.create("ScreenGui", {
+		Name = "Hud",
+		ResetOnSpawn = false,
+		Parent = player:WaitForChild("PlayerGui"),
+	})
+	local column = Ui.create("Frame", {
+		Position = UDim2.fromOffset(16, 16),
+		Size = UDim2.fromOffset(220, 140),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		Ui.create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+
+	coinsRow = row(1, column)
+	coinsLabel = Ui.label({
+		Size = UDim2.new(1, -20, 1, -12),
+		Position = UDim2.fromOffset(10, 6),
+		Text = "🪙 0",
+		TextColor3 = Color3.fromRGB(255, 215, 90),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBlack,
+		Parent = coinsRow,
+	})
+
+	local stonesRow = row(2, column)
+	stonesLabel = Ui.label({
+		Size = UDim2.new(1, -20, 1, -12),
+		Position = UDim2.fromOffset(10, 6),
+		Text = "💎 0/6",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = stonesRow,
+	})
+
+	local healthRow = row(3, column)
+	healthRow.Size = UDim2.fromOffset(170, 22)
+	healthFill = Ui.create("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(80, 220, 110),
+		Parent = healthRow,
+	}, { Ui.corner(10) })
+	healthText = Ui.label({
+		Size = UDim2.new(1, 0, 1, -6),
+		Position = UDim2.fromOffset(0, 3),
+		Text = "",
+		ZIndex = 2,
+		Parent = healthRow,
+	})
+
+	PlayerState.Changed:Connect(onData)
+	onData()
+
+	player.CharacterAdded:Connect(bindHealth)
+	if player.Character then
+		task.spawn(bindHealth, player.Character)
 	end
-	coins.Changed:Connect(refresh)
-	refresh()
+
+	-- Плавный "накрут" числа монет.
+	RunService.RenderStepped:Connect(function(dt: number)
+		if shownCoins ~= targetCoins then
+			local diff = targetCoins - shownCoins
+			local step = math.max(1, math.abs(diff) * math.min(1, dt * 8))
+			shownCoins = if math.abs(diff) <= step then targetCoins else shownCoins + math.sign(diff) * step
+			coinsLabel.Text = `🪙 {math.floor(shownCoins)}`
+		end
+	end)
 end
 
 return HudController

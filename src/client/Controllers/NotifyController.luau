@@ -36,7 +36,7 @@ local function ensureContainer(): Frame
 		}),
 		Ui.create("UISizeConstraint", { MaxSize = Vector2.new(460, math.huge) }),
 	})
-	return container :: Frame
+	return container :: any
 end
 
 function NotifyController.show(text: string, color: Color3?)

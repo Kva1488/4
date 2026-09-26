@@ -17,8 +17,10 @@ jobs:
           curl -sSL -o selene.zip https://github.com/Kampfkarren/selene/releases/download/0.28.0/selene-0.28.0-linux.zip
           curl -sSL -o stylua.zip https://github.com/JohnnyMorganz/StyLua/releases/download/v2.0.2/stylua-linux-x86_64.zip
           curl -sSL -o lune.zip   https://github.com/lune-org/lune/releases/download/v0.8.9/lune-0.8.9-linux-x86_64.zip
+          curl -sSL -o lsp.zip    https://github.com/JohnnyMorganz/luau-lsp/releases/download/1.70.0/luau-lsp-linux-x86_64.zip
+          curl -sSL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.70.0/scripts/globalTypes.d.luau
           for f in *.zip; do unzip -o -q "$f"; done
-          chmod +x rojo selene stylua lune
+          chmod +x rojo selene stylua lune luau-lsp
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
       - name: Format check (StyLua)
@@ -26,6 +28,11 @@ jobs:
 
       - name: Lint (selene)
         run: selene src
+
+      - name: Type check against Roblox API (luau-lsp)
+        run: |
+          rojo sourcemap default.project.json -o sourcemap.json
+          luau-lsp analyze --definitions="$HOME/bin/globalTypes.d.luau" --sourcemap=sourcemap.json src
 
       - name: Build place (Rojo)
         run: rojo build -o Game.rbxl

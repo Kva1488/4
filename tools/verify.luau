@@ -8,7 +8,12 @@ local process = require("@lune/process")
 
 local failures = 0
 local function check(cond, msg)
-	if cond then print("  ok   " .. msg) else failures += 1; print("  FAIL " .. msg) end
+	if cond then
+		print("  ok   " .. msg)
+	else
+		failures += 1
+		print("  FAIL " .. msg)
+	end
 end
 
 -- 1. Структура собранного place-файла
@@ -18,7 +23,9 @@ local function find(path)
 	local node = game
 	for part in string.gmatch(path, "[^%.]+") do
 		node = if node == game then game:GetService(part) else node:FindFirstChild(part)
-		if not node then return nil end
+		if not node then
+			return nil
+		end
 	end
 	return node
 end
@@ -30,6 +37,8 @@ local expected = {
 	["ServerScriptService.Server.Services.GauntletService"] = "ModuleScript",
 	["ServerScriptService.Server.Services.DummyService"] = "ModuleScript",
 	["ServerScriptService.Server.Services.LeaderstatsService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.ShopService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.MapService"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.AbilityHandlers"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Damage"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Status"] = "ModuleScript",
@@ -38,6 +47,8 @@ local expected = {
 	["ReplicatedStorage.Shared.Abilities"] = "ModuleScript",
 	["ReplicatedStorage.Shared.Config"] = "ModuleScript",
 	["ReplicatedStorage.Shared.Remotes"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Shop"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Sounds"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -46,7 +57,13 @@ local expected = {
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.NotifyController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.StoneVisualsController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.HudController"] = "ModuleScript",
-	["Workspace.Baseplate"] = "Part",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.ShopController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.DamageFxController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.ScreenFxController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.PoseController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.WorldFxController"] = "ModuleScript",
+	["Lighting.Atmosphere"] = "Atmosphere",
+	["Lighting.Bloom"] = "BloomEffect",
 	["Workspace.SpawnLocation"] = "SpawnLocation",
 }
 for path, className in expected do
@@ -56,8 +73,18 @@ end
 
 -- 2. Согласованность данных Items / Abilities / обработчиков
 print("[data]")
-local env = { Color3 = roblox.Color3, Enum = roblox.Enum, table = table, string = string, math = math,
-	ipairs = ipairs, pairs = pairs, typeof = typeof, type = type, print = print }
+local env = {
+	Color3 = roblox.Color3,
+	Enum = roblox.Enum,
+	table = table,
+	string = string,
+	math = math,
+	ipairs = ipairs,
+	pairs = pairs,
+	typeof = typeof,
+	type = type,
+	print = print,
+}
 local function loadModule(path)
 	return luau.load(fs.readFile(path), { debugName = path, environment = env })()
 end
@@ -81,10 +108,40 @@ for _, s in Items.Stones do
 end
 check(not Abilities.isUnlocked(Abilities.ById.Snap, { Power = true }), "Snap locked with 1 stone")
 local all = {}
-for _, s in Items.Stones do all[s.id] = true end
+for _, s in Items.Stones do
+	all[s.id] = true
+end
 check(Abilities.isUnlocked(Abilities.ById.Snap, all), "Snap unlocked with all stones")
 check(Abilities.isUnlocked(Abilities.ById.Punch, nil), "Punch always unlocked")
 check(Items.countStones(all) == 6 and Items.countStones(nil) == 0, "countStones")
+
+-- 3. Магазин: скины, прокачка, данные по умолчанию
+print("[shop]")
+local Shop = loadModule("src/shared/Shop.luau")
+local Config = loadModule("src/shared/Config.luau")
+check(
+	Shop.SkinById[Shop.DefaultSkin] ~= nil and Shop.SkinById[Shop.DefaultSkin].price == 0,
+	"default skin exists and is free"
+)
+check(Config.DefaultData.Skins[Shop.DefaultSkin] == true, "default skin owned by default")
+check(Config.DefaultData.EquippedSkin == Shop.DefaultSkin, "default skin equipped by default")
+local seenSkins = {}
+for _, skin in Shop.Skins do
+	check(not seenSkins[skin.id], `unique skin id {skin.id}`)
+	seenSkins[skin.id] = true
+end
+for _, upgrade in Shop.Upgrades do
+	check(Config.DefaultData.Upgrades[upgrade.id] == 0, `default level 0 for {upgrade.id}`)
+	local previous = 0
+	for level = 0, upgrade.max - 1 do
+		local cost = Shop.upgradeCost(upgrade, level)
+		check(cost ~= nil and cost > previous, `{upgrade.id} lvl {level + 1} costs more ({cost})`)
+		previous = cost or previous
+	end
+	check(Shop.upgradeCost(upgrade, upgrade.max) == nil, `{upgrade.id} capped at {upgrade.max}`)
+end
+check(Shop.cooldownMult({ Cooldown = 5 }) > 0.5, "cooldown mult stays sane at max")
+check(Shop.maxHealth(nil) == 100, "base max health 100")
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
 process.exit(if failures == 0 then 0 else 1)

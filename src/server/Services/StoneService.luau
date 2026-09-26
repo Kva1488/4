@@ -4,14 +4,29 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
+local Fx = require(script.Parent.Parent.Combat.Fx)
 local DataService = require(script.Parent.DataService)
 
 local StoneService = {}
 
+-- Где на земле стоит каждое место с камнем (MapService строит к ним светящиеся дорожки).
+StoneService.Locations = (
+	{
+		Power = Vector3.new(70, 0, 70),
+		Space = Vector3.new(-90, 0, 50),
+		Reality = Vector3.new(0, 0, -130),
+		Soul = Vector3.new(-160, 0, -160),
+		Time = Vector3.new(150, 0, -70),
+		Mind = Vector3.new(130, 0, 150),
+	}
+) :: { [string]: Vector3 }
+
 local notify: RemoteEvent
+local stoneCollected: RemoteEvent
 local mapFolder: Folder
 
 local STONE_COLOR = Color3.fromRGB(99, 95, 98)
@@ -155,10 +170,26 @@ function StoneService:GiveStone(player: Player, stoneId: string)
 	end
 	DataService:Update(player, function(d)
 		d.Stones[stoneId] = true
+		d.Coins += Config.Rewards.StoneFirstPickup
 	end)
 
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		Fx.pillar(root.Position - Vector3.new(0, 3, 0), stone.color, 120, 1.5)
+		Fx.burst(root.Position, stone.color, 80, 40)
+		Fx.shockwave(root.Position - Vector3.new(0, 2.5, 0), stone.color, 20)
+		Fx.flash(root.Position, stone.color, 40, 1)
+		Fx.sound("StonePickup", root.Position, 1, 0.8)
+	end
+
 	local count = Items.countStones(data.Stones)
-	notify:FireClient(player, `{stone.name} получен! ({count}/{#Items.Stones})`, stone.color)
+	stoneCollected:FireClient(player, stoneId, count)
+	notify:FireClient(
+		player,
+		`{stone.name} получен! ({count}/{#Items.Stones}) +{Config.Rewards.StoneFirstPickup} 🪙`,
+		stone.color
+	)
 	if count == #Items.Stones then
 		notify:FireClient(
 			player,
@@ -170,6 +201,7 @@ end
 
 function StoneService:Init()
 	notify = Remotes.event("Notify")
+	stoneCollected = Remotes.event("StoneCollected")
 end
 
 function StoneService:Start()
@@ -177,13 +209,14 @@ function StoneService:Start()
 	mapFolder.Name = "StoneLocations"
 	mapFolder.Parent = workspace
 
+	local at = StoneService.Locations
 	local spots: { [string]: Vector3 } = {
-		Power = tower(Vector3.new(70, 0, 70), 35, Color3.fromRGB(80, 50, 110)),
-		Space = parkour(Vector3.new(-90, 0, 50), 9, Items.StoneById.Space.color),
-		Reality = maze(Vector3.new(0, 0, -130), Color3.fromRGB(110, 45, 45)),
-		Soul = tower(Vector3.new(-160, 0, -160), 60, Color3.fromRGB(120, 80, 40)),
-		Time = parkour(Vector3.new(150, 0, -70), 12, Items.StoneById.Time.color),
-		Mind = Vector3.new(130, 0, 150),
+		Power = tower(at.Power, 35, Color3.fromRGB(80, 50, 110)),
+		Space = parkour(at.Space, 9, Items.StoneById.Space.color),
+		Reality = maze(at.Reality, Color3.fromRGB(110, 45, 45)),
+		Soul = tower(at.Soul, 60, Color3.fromRGB(120, 80, 40)),
+		Time = parkour(at.Time, 12, Items.StoneById.Time.color),
+		Mind = at.Mind,
 	}
 
 	for _, stone in Items.Stones do

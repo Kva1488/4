@@ -1,6 +1,12 @@
 --!strict
 -- Небольшие помощники для создания интерфейса кодом.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local Sounds = require(ReplicatedStorage.Shared.Sounds)
+
 local Ui = {}
 
 Ui.Colors = {
@@ -13,7 +19,7 @@ Ui.Colors = {
 }
 
 -- create("Frame", { Size = ..., Parent = ... }, { children })
-function Ui.create(className: string, props: { [string]: any }, children: { Instance }?): any
+function Ui.create(className: string, props: { [string]: any }, children: { any }?): any
 	local instance = Instance.new(className) :: any
 	for key, value in props do
 		if key ~= "Parent" then
@@ -31,15 +37,15 @@ function Ui.create(className: string, props: { [string]: any }, children: { Inst
 	return instance
 end
 
-function Ui.corner(radius: number?): UICorner
+function Ui.corner(radius: number?): any
 	return Ui.create("UICorner", { CornerRadius = UDim.new(0, radius or 10) })
 end
 
-function Ui.round(): UICorner
+function Ui.round(): any
 	return Ui.create("UICorner", { CornerRadius = UDim.new(1, 0) })
 end
 
-function Ui.stroke(color: Color3, thickness: number?, transparency: number?): UIStroke
+function Ui.stroke(color: Color3, thickness: number?, transparency: number?): any
 	return Ui.create("UIStroke", {
 		Color = color,
 		Thickness = thickness or 2,
@@ -48,7 +54,7 @@ function Ui.stroke(color: Color3, thickness: number?, transparency: number?): UI
 	})
 end
 
-function Ui.padding(px: number): UIPadding
+function Ui.padding(px: number): any
 	return Ui.create("UIPadding", {
 		PaddingLeft = UDim.new(0, px),
 		PaddingRight = UDim.new(0, px),
@@ -57,7 +63,7 @@ function Ui.padding(px: number): UIPadding
 	})
 end
 
-function Ui.label(props: { [string]: any }): TextLabel
+function Ui.label(props: { [string]: any }): any
 	local defaults = {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
@@ -70,8 +76,69 @@ function Ui.label(props: { [string]: any }): TextLabel
 	return Ui.create("TextLabel", defaults)
 end
 
+-- Панели (инвентарь, магазин): одновременно открыта только одна.
+local panels: { [string]: (boolean) -> () } = {}
+local openPanel: string? = nil
+
+function Ui.registerPanel(name: string, setVisible: (boolean) -> ())
+	panels[name] = setVisible
+end
+
+function Ui.togglePanel(name: string, open: boolean?)
+	local shouldOpen = if open == nil then openPanel ~= name else open
+	if shouldOpen then
+		if openPanel and openPanel ~= name and panels[openPanel] then
+			panels[openPanel](false)
+		end
+		openPanel = name
+		panels[name](true)
+	elseif openPanel == name then
+		openPanel = nil
+		panels[name](false)
+	end
+end
+
+function Ui.isOpen(name: string): boolean
+	return openPanel == name
+end
+
+-- Короткий звук интерфейса (ключ из Shared/Sounds).
+function Ui.playSound(name: string, volume: number?, pitch: number?)
+	local id = (Sounds :: any)[name]
+	if type(id) ~= "string" or id == "" then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = volume or 0.5
+	sound.PlaybackSpeed = pitch or 1
+	sound.Parent = SoundService
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(5, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+-- Кнопка с приятным "пружинящим" нажатием.
+function Ui.bounce(button: GuiButton)
+	local scale = button:FindFirstChildOfClass("UIScale") or Ui.create("UIScale", { Parent = button })
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.08), { Scale = 0.92 }):Play()
+	end)
+	local function release()
+		TweenService:Create(scale, TweenInfo.new(0.2, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+	button.MouseButton1Up:Connect(release)
+	button.MouseLeave:Connect(release)
+end
+
 -- Круглая "иконка камня": цветной шар с бликом.
-function Ui.gem(color: Color3, size: UDim2, parent: Instance?): Frame
+function Ui.gem(color: Color3, size: UDim2, parent: Instance?): any
 	return Ui.create("Frame", {
 		Size = size,
 		BackgroundColor3 = color,

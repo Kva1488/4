@@ -9,12 +9,13 @@ local RESPAWN_TIME = 5
 local MAX_HEALTH = 150
 
 local SPOTS = {
-	Vector3.new(-25, 0, -25),
-	Vector3.new(0, 0, -30),
-	Vector3.new(25, 0, -25),
-	Vector3.new(-35, 0, 10),
-	Vector3.new(35, 0, 10),
-	Vector3.new(0, 0, 35),
+	-- За пределами арены (радиус 30), между светящимися дорожками.
+	Vector3.new(-30, 0, -32),
+	Vector3.new(12, 0, -44),
+	Vector3.new(38, 0, -24),
+	Vector3.new(-44, 0, 8),
+	Vector3.new(44, 0, 22),
+	Vector3.new(-8, 0, 45),
 }
 
 local folder: Folder

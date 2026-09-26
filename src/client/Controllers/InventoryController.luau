@@ -8,6 +8,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Abilities = require(ReplicatedStorage.Shared.Abilities)
 local Items = require(ReplicatedStorage.Shared.Items)
+local Shop = require(ReplicatedStorage.Shared.Shop)
 
 local PlayerState = require(script.Parent.Parent.PlayerState)
 local Ui = require(script.Parent.Parent.Ui)
@@ -40,6 +41,16 @@ local details: {
 }
 local progressLabel: TextLabel
 
+local function equippedSkin(): Shop.Skin
+	local data = PlayerState.get()
+	return Shop.SkinById[if data then data.EquippedSkin else Shop.DefaultSkin]
+		or Shop.SkinById[Shop.DefaultSkin]
+end
+
+local function equippedSkinColor(): Color3
+	return Shop.skinColor(equippedSkin())
+end
+
 local function abilityLine(ability: Abilities.Ability, stones: { [string]: boolean }): string
 	local unlocked = Abilities.isUnlocked(ability, stones)
 	local mark = if unlocked then "✅" else "🔒"
@@ -50,10 +61,12 @@ end
 local function renderDetails()
 	local stones = PlayerState.stones()
 	if selectedId == "Gauntlet" then
-		details.icon.BackgroundColor3 = Items.Gauntlet.color
+		local skinColor = equippedSkinColor()
+		details.icon.BackgroundColor3 = skinColor
 		details.name.Text = "🧤 " .. Items.Gauntlet.name
-		details.name.TextColor3 = Items.Gauntlet.color
-		details.status.Text = `Камней в перчатке: {Items.countStones(stones)}/{#Items.Stones}`
+		details.name.TextColor3 = skinColor
+		details.status.Text =
+			`Камней в перчатке: {Items.countStones(stones)}/{#Items.Stones} · скин «{equippedSkin().name}»`
 		local lines = { Items.Gauntlet.description, "" }
 		for _, ability in Abilities.List do
 			if ability.kind ~= "stone" then
@@ -89,7 +102,9 @@ local function render()
 		local selected = entry.id == selectedId
 		entry.stroke.Color = if selected then Color3.new(1, 1, 1) else Ui.Colors.PanelLight
 		entry.stroke.Thickness = if selected then 3 else 2
-		if entry.id ~= "Gauntlet" then
+		if entry.id == "Gauntlet" then
+			entry.icon.BackgroundColor3 = equippedSkinColor()
+		else
 			local stone = Items.StoneById[entry.id]
 			local owned = stones[entry.id] == true
 			entry.icon.BackgroundColor3 = if owned then stone.color else Ui.Colors.Locked
@@ -127,10 +142,7 @@ local function createEntry(id: string, name: string, color: Color3, order: numbe
 	return entry
 end
 
-local function setOpen(open: boolean)
-	if open == panel.Visible then
-		return
-	end
+local function setVisible(open: boolean)
 	if open then
 		render()
 		panel.Visible = true
@@ -174,8 +186,9 @@ local function build()
 			TextColor3 = Ui.Colors.Muted,
 		}),
 	})
+	Ui.bounce(toggle)
 	toggle.Activated:Connect(function()
-		setOpen(not panel.Visible)
+		Ui.togglePanel("Inventory")
 	end)
 
 	panelScale = Ui.create("UIScale", {})
@@ -241,7 +254,7 @@ local function build()
 		Parent = wrapper,
 	}, { Ui.corner(8), Ui.padding(6) })
 	close.Activated:Connect(function()
-		setOpen(false)
+		Ui.togglePanel("Inventory", false)
 	end)
 
 	-- Сетка предметов слева.
@@ -320,6 +333,7 @@ end
 
 function InventoryController:Start()
 	build()
+	Ui.registerPanel("Inventory", setVisible)
 	PlayerState.Changed:Connect(function()
 		if panel.Visible then
 			render()
@@ -327,7 +341,7 @@ function InventoryController:Start()
 	end)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == TOGGLE_KEY then
-			setOpen(not panel.Visible)
+			Ui.togglePanel("Inventory")
 		end
 	end)
 end

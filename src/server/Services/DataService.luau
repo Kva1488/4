@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Shop = require(ReplicatedStorage.Shared.Shop)
 
 type PlayerData = Config.PlayerData
 
@@ -66,6 +67,24 @@ local function reconcile(raw: any): PlayerData
 				result.Stones[id] = true
 			end
 		end
+	end
+	if type(raw.Upgrades) == "table" then
+		for _, upgrade in Shop.Upgrades do
+			local level = raw.Upgrades[upgrade.id]
+			if type(level) == "number" and level == level then
+				result.Upgrades[upgrade.id] = math.clamp(math.floor(level), 0, upgrade.max)
+			end
+		end
+	end
+	if type(raw.Skins) == "table" then
+		for id, owned in raw.Skins do
+			if Shop.SkinById[id] and owned == true then
+				result.Skins[id] = true
+			end
+		end
+	end
+	if type(raw.EquippedSkin) == "string" and result.Skins[raw.EquippedSkin] then
+		result.EquippedSkin = raw.EquippedSkin
 	end
 	return result
 end

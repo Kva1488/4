@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Abilities = require(ReplicatedStorage.Shared.Abilities)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Shop = require(ReplicatedStorage.Shared.Shop)
 
 local AbilityHandlers = require(script.Parent.Parent.Combat.AbilityHandlers)
 local Status = require(script.Parent.Parent.Combat.Status)
@@ -19,6 +20,19 @@ local COOLDOWN_TOLERANCE = 0.1
 local CombatService = {}
 
 local cooldowns: { [Player]: { [string]: number } } = {}
+local poseCounter = 0
+
+-- Какую позу руки показать всем игрокам (анимация делается кодом в PoseController).
+local POSES: { [string]: string } = {
+	Punch = "Punch",
+	Snap = "Raise",
+}
+
+local function setPose(character: Model, abilityId: string)
+	poseCounter += 1
+	character:SetAttribute("Pose", POSES[abilityId] or "Cast")
+	character:SetAttribute("PoseId", poseCounter)
+end
 
 local function isFiniteVector(v: Vector3): boolean
 	return v.X == v.X
@@ -77,17 +91,23 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 	if now < (playerCooldowns[abilityId] or 0) - COOLDOWN_TOLERANCE then
 		return
 	end
-	playerCooldowns[abilityId] = now + ability.cooldown
+	local cooldown = ability.cooldown * Shop.cooldownMult(data.Upgrades)
+	playerCooldowns[abilityId] = now + cooldown
 
-	Remotes.event("AbilityCast"):FireClient(player, abilityId)
+	Remotes.event("AbilityCast"):FireClient(player, abilityId, cooldown)
+	setPose(character, abilityId)
 
+	local skin = Shop.SkinById[data.EquippedSkin] or Shop.SkinById[Shop.DefaultSkin]
 	local handler = AbilityHandlers[abilityId]
-	local ok, err = pcall(handler, {
+	local ok, err = pcall(handler :: any, {
 		player = player,
 		character = character,
 		humanoid = humanoid,
 		root = root,
 		target = clampTarget(root.Position, target, ability.range, root.CFrame.LookVector),
+		abilityId = abilityId,
+		damageMult = Shop.damageMult(data.Upgrades),
+		accent = Shop.skinColor(skin),
 	})
 	if not ok then
 		warn(`[CombatService] {abilityId} failed: {err}`)

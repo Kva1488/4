@@ -10,15 +10,17 @@ local LeaderstatsService = {}
 local function getCoinsValue(player: Player): IntValue
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if not leaderstats then
-		leaderstats = Instance.new("Folder")
-		leaderstats.Name = "leaderstats"
-		leaderstats.Parent = player
+		local folder = Instance.new("Folder")
+		folder.Name = "leaderstats"
+		folder.Parent = player
+		leaderstats = folder
 	end
-	local coins = (leaderstats :: Folder):FindFirstChild("Coins")
+	local coins = (leaderstats :: Instance):FindFirstChild("Coins")
 	if not coins then
-		coins = Instance.new("IntValue")
-		coins.Name = "Coins"
-		coins.Parent = leaderstats
+		local value = Instance.new("IntValue")
+		value.Name = "Coins"
+		value.Parent = leaderstats
+		coins = value
 	end
 	return coins :: IntValue
 end

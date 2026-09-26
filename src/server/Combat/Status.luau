@@ -25,7 +25,7 @@ local function isActive(effect: Effect?): boolean
 end
 
 local function recompute(humanoid: Humanoid)
-	local list = effects[humanoid] or {}
+	local list: { [string]: Effect } = effects[humanoid] or {}
 	local stunned = isActive(list.Stun)
 	local slowed = isActive(list.Slow)
 
