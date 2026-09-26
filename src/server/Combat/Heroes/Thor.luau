@@ -685,4 +685,135 @@ function Handlers.DualSpin(ctx)
 	end
 end
 
+---------------------------------------------------------------- АТАКИ U и I
+
+-- Разрушение моста: цепочка взрывов вперёд от удара молотом.
+function Handlers.BridgeBreaker(ctx)
+	local forward = Kit.aimFlat(ctx)
+	Fx.sound("Wave", ctx.root.Position, 1, 0.7)
+	for i = 1, 6 do
+		task.delay(i * 0.1, function()
+			local point = ctx.root.Position - Vector3.new(0, 2.5, 0) + forward * (i * 6)
+			Fx.shockwave(point, THUNDER, 6)
+			Fx.lightning(point + Vector3.new(0, 15, 0), point, THUNDER, 6, 0.25)
+			Fx.burst(point, Color3.fromRGB(120, 100, 90), 15, 25, "Smoke")
+			for _, target in Damage.inRadius(point, 6, ctx.character) do
+				hit(ctx, target, 14)
+				Damage.knockback(target.root, Vector3.new(0, 60, 0), 0.2)
+			end
+		end)
+	end
+end
+
+-- Шторм над Сакааром: клетка из молний.
+function Handlers.SakaarStorm(ctx)
+	local radius = Abilities.ById.SakaarStorm.range
+	for tick = 1, 3 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local center = ctx.root.Position
+		for i = 1, 8 do
+			local angle = (i / 8) * math.pi * 2 + tick
+			local post = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+			Fx.lightning(post + Vector3.new(0, 12, 0), post - Vector3.new(0, 3, 0), THUNDER, 6, 0.4)
+		end
+		for _, target in Damage.inRadius(center, radius, ctx.character) do
+			Fx.lightning(center, target.root.Position, WHITE, 6, 0.25)
+			hit(ctx, target, 12)
+			Status.apply(target.humanoid, "Slow", 1.5, 0.5)
+		end
+		task.wait(0.6)
+	end
+end
+
+-- Плазма звезды: столб и горение.
+function Handlers.StarPlasma(ctx)
+	local point = ctx.target
+	Fx.pillar(point - Vector3.new(0, 2, 0), STAR, 120, 1.2)
+	Fx.sphere(point, STAR, 2, 14, 0.5)
+	Fx.burst(point, STAR, 60, 40, "Fire")
+	Fx.sound("Wave", point, 1, 0.8)
+	local victims = Damage.inRadius(point, 8, ctx.character)
+	for _, target in victims do
+		hit(ctx, target, 35, STAR)
+	end
+	for _ = 1, 3 do
+		task.wait(0.6)
+		for _, target in victims do
+			if target.humanoid.Health > 0 then
+				hit(ctx, target, 5, STAR)
+				Fx.burst(target.root.Position, STAR, 8, 10, "Fire")
+			end
+		end
+	end
+end
+
+-- Корни Грута: оплетают врагов в зоне.
+function Handlers.GrootRoots(ctx)
+	local wood = Color3.fromRGB(140, 100, 60)
+	local center = ctx.target
+	Fx.sound("Magic", center, 0.9, 0.5)
+	for i = 1, 8 do
+		local angle = (i / 8) * math.pi * 2
+		local from = center + Vector3.new(math.cos(angle) * 10, -2, math.sin(angle) * 10)
+		Fx.branch(Fx.arc(from, center + Vector3.new(0, 4, 0), 3, 5), wood, 0.8, 2, 0.4)
+	end
+	for _, target in Damage.inRadius(center, 11, ctx.character) do
+		hit(ctx, target, 20, wood)
+		Status.apply(target.humanoid, "Stun", 2)
+		Fx.branch(
+			Fx.arc(
+				target.root.Position - Vector3.new(0, 3, 0),
+				target.root.Position + Vector3.new(0, 2, 0),
+				1,
+				4
+			),
+			wood,
+			0.5,
+			2,
+			0.3
+		)
+	end
+end
+
+-- Громовой смерч: идёт вперёд и тащит врагов.
+function Handlers.ThunderTornado(ctx)
+	local forward = Kit.aimFlat(ctx)
+	local position = ctx.root.Position
+	Fx.sound("Wave", position, 1, 1.2)
+	for _ = 1, 8 do
+		position += forward * 6
+		for level = 0, 3 do
+			Fx.ring(position + Vector3.new(0, level * 3 - 2, 0), THUNDER, 3 + level * 1.5, 0.3)
+		end
+		Fx.lightning(position + Vector3.new(0, 12, 0), position, WHITE, 6, 0.2)
+		for _, target in Damage.inRadius(position, 8, ctx.character) do
+			hit(ctx, target, 6)
+			Damage.knockback(target.root, forward * 40 + Vector3.new(0, 25, 0), 0.2)
+		end
+		task.wait(0.15)
+	end
+end
+
+-- Асгардский натиск: три рывка с ударами.
+function Handlers.AsgardCharge(ctx)
+	for i = 1, 3 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local forward = Kit.aimFlat(ctx)
+		Fx.afterimage(ctx.character, THUNDER, 0.35)
+		Damage.knockback(ctx.root, forward * 100, 0.14)
+		task.wait(0.16)
+		local point = ctx.root.Position
+		Fx.shockwave(point - Vector3.new(0, 2.5, 0), THUNDER, 7)
+		Fx.slash(CFrame.lookAt(point, point + forward), if i % 2 == 0 then STEEL else THUNDER, 7, i % 2 == 0)
+		for _, target in Damage.inRadius(point, 7, ctx.character) do
+			hit(ctx, target, 13)
+		end
+		task.wait(0.12)
+	end
+end
+
 return { Handlers = Handlers }

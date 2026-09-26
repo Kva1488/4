@@ -251,4 +251,47 @@ function Handlers.MindCleave(ctx)
 	end
 end
 
+-- Гибель миров: дождь обломков.
+function Handlers.WorldsEnd(ctx)
+	local zone = 22
+	local c = color("WorldsEnd")
+	Fx.ring(ctx.target, c, zone, 2.5)
+	Fx.sound("Wave", ctx.target, 1.2, 0.5)
+	for i = 1, 14 do
+		task.delay(i * 0.12, function()
+			local impact = ctx.target + Vector3.new(math.random(-zone, zone), 0, math.random(-zone, zone))
+			local fall = Fx.meteor(impact, 0.5)
+			task.wait(fall)
+			Fx.shockwave(impact, c, 6)
+			Fx.burst(impact, Items.Stones[i % 6 + 1].color, 20, 30)
+			for _, target in Damage.inRadius(impact, 6, ctx.character) do
+				hit(ctx, target, 11)
+			end
+		end)
+	end
+end
+
+-- Удар сквозь портал: за спину ближайшего врага и удар копьём.
+function Handlers.PortalStrike(ctx)
+	local c = color("PortalStrike")
+	local targets = Damage.inRadius(ctx.target, 25, ctx.character)
+	table.sort(targets, function(a, b)
+		return (a.root.Position - ctx.target).Magnitude < (b.root.Position - ctx.target).Magnitude
+	end)
+	local target = targets[1]
+	if not target then
+		return
+	end
+	Fx.portal(ctx.root.Position, Kit.aimFlat(ctx), c, 3.5, 0.5)
+	Fx.afterimage(ctx.character, c, 0.5)
+	local behind = target.root.CFrame * CFrame.new(0, 0, 4)
+	ctx.character:PivotTo(CFrame.lookAt(behind.Position, target.root.Position))
+	Fx.portal(behind.Position, target.root.CFrame.LookVector, c, 3.5, 0.6)
+	task.wait(0.1)
+	Fx.beam(ctx.root.Position, target.root.Position, color("SpearThrow"), 0.5, 0.25)
+	Fx.slash(CFrame.lookAt(ctx.root.Position, target.root.Position), color("SpearThrow"), 8)
+	hit(ctx, target, 40)
+	Damage.pushAway(target, ctx.root.Position, 70, 25)
+end
+
 return { Handlers = Handlers }

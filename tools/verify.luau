@@ -157,9 +157,24 @@ for _, hero in Heroes.List do
 		keys[a.keyLabel] = true
 	end
 	check(keys.R and keys.T and keys.Y, `{hero.id} has R, T and Y abilities`)
+	check(keys.U and keys.I, `{hero.id} has U and I abilities`)
 	local count = #list
 	check(count >= 6, `{hero.id} has {count} abilities`)
 end
+-- У Таноса есть комбо на 3, 4, 5 и 6 камней, а 6 камней дают не только щелчок.
+local comboSizes = {}
+local sixStone = 0
+for _, a in Abilities.forHero("Thanos") do
+	comboSizes[#a.requires] = true
+	if #a.requires == 6 then
+		sixStone += 1
+	end
+end
+for size = 3, 6 do
+	check(comboSizes[size] == true, `Thanos has a {size}-stone combo`)
+end
+check(sixStone >= 2, `Thanos has {sixStone} abilities needing all 6 stones`)
+check(Abilities.ById.InfinityBeam ~= nil, "Thanos has the Infinity Beam laser")
 check(Heroes.isUnlocked(Heroes.ById.Loki, {}), "Loki unlocked from start")
 check(Heroes.isUnlocked(Heroes.ById.Ultron, {}), "Ultron unlocked from start")
 check(not Heroes.isUnlocked(Heroes.ById.GodLoki, { LokiKills = 24 }), "God Loki locked at 24 kills")

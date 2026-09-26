@@ -335,4 +335,70 @@ function Handlers.JotunTouch(ctx)
 	end
 end
 
+-- Армия читаури: выстрелы из портала над зоной прицела.
+function Handlers.ChitauriArmy(ctx)
+	Kit.reveal(ctx.character)
+	local c = color("ChitauriArmy")
+	local portal = ctx.target + Vector3.new(0, 40, 0)
+	Fx.portal(portal, Vector3.new(0, 0, -1), c, 10, 3)
+	Fx.sound("Magic", ctx.target, 1, 0.5)
+	for i = 1, 8 do
+		task.delay(0.3 + i * 0.25, function()
+			local point = ctx.target + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))
+			local targets = Damage.inRadius(ctx.target, 14, ctx.character)
+			if #targets > 0 then
+				point = targets[math.random(1, #targets)].root.Position
+			end
+			Fx.beam(portal, point, c, 0.6, 0.25)
+			Fx.sphere(point, c, 1, 5, 0.3)
+			for _, target in Damage.inRadius(point, 4, ctx.character) do
+				hit(ctx, target, 10)
+			end
+		end)
+	end
+end
+
+-- Разрушитель: доспех 3 секунды бьёт огненным лучом по ближайшим врагам.
+function Handlers.Destroyer(ctx)
+	Kit.reveal(ctx.character)
+	local fire = color("Destroyer")
+	local spot = ctx.root.Position + Kit.aimFlat(ctx) * 6
+	local body = Instance.new("Part")
+	body.Anchored = true
+	body.CanCollide = false
+	body.CanQuery = false
+	body.Size = Vector3.new(3, 7, 2)
+	body.Material = Enum.Material.Metal
+	body.Color = Color3.fromRGB(150, 150, 160)
+	body.CFrame = CFrame.lookAt(spot + Vector3.new(0, 1, 0), spot + Vector3.new(0, 1, 0) + Kit.aimFlat(ctx))
+	body.Parent = Fx.Folder
+	local face = Instance.new("Part")
+	face.Anchored = true
+	face.CanCollide = false
+	face.CanQuery = false
+	face.Size = Vector3.new(1.6, 1.2, 0.2)
+	face.Material = Enum.Material.Neon
+	face.Color = fire
+	face.CFrame = body.CFrame * CFrame.new(0, 2.6, -1.05)
+	face.Parent = Fx.Folder
+	Fx.burst(spot, fire, 30, 20, "Fire")
+	Fx.sound("Wave", spot, 0.8, 0.6)
+	for _ = 1, 6 do
+		task.wait(0.5)
+		local targets = Damage.inRadius(spot, Abilities.ById.Destroyer.range, ctx.character)
+		table.sort(targets, function(a, b)
+			return (a.root.Position - spot).Magnitude < (b.root.Position - spot).Magnitude
+		end)
+		local target = targets[1]
+		if target then
+			Fx.beam(face.Position, target.root.Position, fire, 1.2, 0.3)
+			Fx.burst(target.root.Position, fire, 15, 20, "Fire")
+			hit(ctx, target, 9)
+		end
+	end
+	Fx.burst(spot, fire, 30, 20, "Smoke")
+	body:Destroy()
+	face:Destroy()
+end
+
 return { Handlers = Handlers }

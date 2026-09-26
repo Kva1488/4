@@ -416,6 +416,135 @@ function Handlers.Absorb(ctx)
 	end
 end
 
+---------------------------------------------------------------- КОМБО ИЗ 3–6 КАМНЕЙ
+
+local function stoneColor(id: string): Color3
+	return Items.StoneById[id].color
+end
+
+-- Чёрная дыра: воронка затягивает врагов, потом схлопывается.
+function Handlers.BlackHole(ctx)
+	local center = ctx.target + Vector3.new(0, 3, 0)
+	local radius = 20
+	local core = Fx.sphere(center, Color3.new(0, 0, 0), 4, 5, 2.6)
+	core.Material = Enum.Material.Glass
+	core.Transparency = 0
+	Fx.sound("Magic", center, 1.2, 0.3)
+	for tick = 1, 5 do
+		Fx.ring(center - Vector3.new(0, 2, 0), color("BlackHole"), radius * (1.2 - tick * 0.15), 0.5)
+		for _, id in { "Power", "Space", "Reality" } do
+			local angle = tick * 1.3 + math.random() * 6
+			local from = center
+				+ Vector3.new(math.cos(angle) * radius, math.random(-2, 4), math.sin(angle) * radius)
+			Fx.lightning(from, center, stoneColor(id), 8, 0.4)
+		end
+		for _, target in Damage.inRadius(center, radius, ctx.character) do
+			local pull = center - target.root.Position
+			if pull.Magnitude > 3 then
+				Damage.knockback(target.root, pull.Unit * math.min(pull.Magnitude * 3, 60), 0.3)
+			end
+			hit(ctx, target, 5)
+		end
+		task.wait(0.5)
+	end
+	-- Схлопывание.
+	Fx.sphere(center, Color3.new(1, 1, 1), 10, 1, 0.25)
+	task.wait(0.25)
+	Fx.sphere(center, color("BlackHole"), 2, radius * 1.6, 0.5)
+	Fx.shockwave(center - Vector3.new(0, 2.5, 0), color("BlackHole"), radius)
+	Fx.flash(center, color("BlackHole"), 50, 0.6)
+	Fx.burst(center, color("BlackHole"), 80, 60)
+	for _, target in Damage.inRadius(center, radius * 0.6, ctx.character) do
+		hit(ctx, target, 30)
+		Damage.pushAway(target, center, 90, 40)
+	end
+end
+
+-- Власть над жизнью: оглушение и похищение жизни у всех рядом.
+function Handlers.LifeDominion(ctx)
+	local radius = Abilities.ById.LifeDominion.range
+	local center = ctx.root.Position
+	Fx.sound("Magic", center, 1, 0.4)
+	Fx.clock(center, stoneColor("Time"), radius * 0.5, 2)
+	Fx.shockwave(center - Vector3.new(0, 2.5, 0), stoneColor("Soul"), radius)
+	Fx.sphere(center, stoneColor("Mind"), radius * 2, 3, 0.8)
+	local targets = Damage.inRadius(center, radius, ctx.character)
+	for _, target in targets do
+		Status.apply(target.humanoid, "Stun", 2)
+	end
+	Kit.drainAll(ctx, targets, 30, stoneColor("Soul"))
+end
+
+-- Буря камней: лучи четырёх цветов с неба.
+function Handlers.StoneStorm(ctx)
+	local ids = { "Power", "Space", "Reality", "Soul" }
+	local targets = Damage.inRadius(ctx.target, 25, ctx.character)
+	Fx.sound("Wave", ctx.target, 1, 0.7)
+	for i, id in ids do
+		local target = targets[((i - 1) % math.max(#targets, 1)) + 1]
+		local point = if target
+			then target.root.Position
+			else ctx.target + Vector3.new(math.random(-12, 12), 0, math.random(-12, 12))
+		task.delay((i - 1) * 0.2, function()
+			local c = stoneColor(id)
+			Fx.beam(point + Vector3.new(0, 90, 0), point, c, 3, 0.5)
+			Fx.lightning(point + Vector3.new(0, 60, 0), point, c, 10, 0.4)
+			Fx.shockwave(point - Vector3.new(0, 2, 0), c, 8)
+			Fx.burst(point, c, 40, 40)
+			for _, victim in Damage.inRadius(point, 7, ctx.character) do
+				hit(ctx, victim, 30, c)
+			end
+		end)
+	end
+end
+
+-- Натиск Ваканды: волна пяти цветов перед Таносом.
+function Handlers.WakandaAssault(ctx)
+	local range = Abilities.ById.WakandaAssault.range
+	local forward = Kit.aimFlat(ctx)
+	local origin = CFrame.lookAt(ctx.root.Position, ctx.root.Position + forward)
+	local ids = { "Power", "Space", "Reality", "Soul", "Time" }
+	Fx.sound("Wave", ctx.root.Position, 1.2, 0.6)
+	for i, id in ids do
+		task.delay(i * 0.05, function()
+			Fx.slash(origin * CFrame.new(0, 0, -i * range / 6), stoneColor(id), 12 + i * 3, i % 2 == 0)
+			Fx.burst(ctx.root.Position + forward * (i * range / 6), stoneColor(id), 25, 30)
+		end)
+	end
+	Fx.flash(ctx.root.Position, Color3.new(1, 1, 1), 40, 0.5)
+	for _, target in Kit.inCone(ctx, range, 45) do
+		hit(ctx, target, 50)
+		Damage.pushAway(target, ctx.root.Position, 100, 40)
+	end
+end
+
+-- Луч Бесконечности: радужный лазер из Перчатки.
+function Handlers.InfinityBeam(ctx)
+	local range = Abilities.ById.InfinityBeam.range
+	Status.apply(ctx.humanoid, "Stun", 2.2)
+	for _, player in Kit.playersNear(ctx.root.Position, 150) do
+		Kit.screenFx:FireClient(player, "Thunder", ctx.root.Position, "Луч Бесконечности")
+	end
+	Fx.sound("Beam", ctx.root.Position, 1.2, 0.5)
+	for tick = 1, 10 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local origin = ctx.root.Position + Vector3.new(0, 1.2, 0)
+		local direction = Kit.aim3D(ctx, origin)
+		local targets, finish = Kit.alongLine(ctx, origin, direction, range, 5)
+		local stone = Items.Stones[(tick - 1) % #Items.Stones + 1]
+		Fx.beam(origin, finish, stone.color, 3.5, 0.25)
+		Fx.beam(origin, finish, Color3.new(1, 1, 1), 1.2, 0.2)
+		Fx.lightning(origin, finish, stone.color, 12, 0.2)
+		Fx.burst(finish, stone.color, 15, 30)
+		for _, target in targets do
+			hit(ctx, target, 9, stone.color)
+		end
+		task.wait(0.2)
+	end
+end
+
 return {
 	Handlers = Handlers,
 	rewind = rewind,

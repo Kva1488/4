@@ -293,4 +293,34 @@ function Handlers.MagneticPull(ctx)
 	end
 end
 
+-- Железный легион: четыре дрона надолго.
+function Handlers.IronLegion(ctx)
+	Fx.sound("Magic", ctx.root.Position, 0.8, 1.1)
+	Fx.ring(ctx.root.Position - Vector3.new(0, 2.5, 0), RED, 10, 0.5)
+	Sentries.spawn(ctx.player, function(target, damage)
+		hit(ctx, target, damage)
+	end, 4, 14, 7)
+end
+
+-- Вибраниевый лазер: удерживаемый красный луч.
+function Handlers.VibraniumLaser(ctx)
+	local range = Abilities.ById.VibraniumLaser.range
+	Status.apply(ctx.humanoid, "Slow", 1.6, 0.3)
+	for _ = 1, 8 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local origin = ctx.root.Position + Vector3.new(0, 0.8, 0)
+		local direction = Kit.aim3D(ctx, origin)
+		local targets, finish = Kit.alongLine(ctx, origin, direction, range, 3.5)
+		Fx.beam(origin, finish, RED, 1.6, 0.22)
+		Fx.lightning(origin, finish, Color3.fromRGB(255, 170, 150), 10, 0.2)
+		Fx.burst(finish, RED, 10, 25, "Spark")
+		for _, target in targets do
+			hit(ctx, target, 7)
+		end
+		task.wait(0.19)
+	end
+end
+
 return { Handlers = Handlers }

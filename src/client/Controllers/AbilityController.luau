@@ -278,7 +278,8 @@ local function populate(heroId: string)
 	table.clear(slots)
 
 	local list = Abilities.forHero(heroId)
-	local columns = if touch then math.min(6, #list) else #list
+	-- У Таноса больше 20 слотов, поэтому панель переносится на несколько рядов.
+	local columns = math.min(if touch then 6 else 12, #list)
 	local rows = math.ceil(#list / math.max(columns, 1))
 	barWidth = columns * (SLOT + GAP) - GAP
 	bar.Size = UDim2.fromOffset(barWidth, rows * (SLOT + GAP) - GAP)

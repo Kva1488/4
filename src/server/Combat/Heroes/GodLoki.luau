@@ -14,6 +14,7 @@ local Kit = require(script.Parent.Parent.Kit)
 local Projectile = require(script.Parent.Parent.Projectile)
 local Status = require(script.Parent.Parent.Status)
 local Thanos = require(script.Parent.Thanos)
+local Timeline = require(script.Parent.Parent.Timeline)
 
 type Context = Kit.Context
 
@@ -336,6 +337,49 @@ function Handlers.Variants(ctx)
 			Fx.burst(spot, tint, 25, 15)
 			variant:Destroy()
 		end)
+	end
+end
+
+-- Ткацкий станок: кольцо нитей вокруг Локи.
+function Handlers.TemporalLoom(ctx)
+	local radius = Abilities.ById.TemporalLoom.range
+	for tick = 1, 6 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local center = ctx.root.Position
+		for i = 0, 5 do
+			local angle = tick * 0.7 + i * math.pi / 3
+			local a = center + Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+			local b = center + Vector3.new(math.cos(angle + 1) * radius, 1, math.sin(angle + 1) * radius)
+			Fx.branch({ a, b }, GREEN, 0.3, 0.4, 0.1)
+		end
+		for _, target in Damage.inRadius(center, radius, ctx.character) do
+			hit(ctx, target, 6)
+			Status.apply(target.humanoid, "Slow", 1, 0.5)
+		end
+		task.wait(0.5)
+	end
+end
+
+-- Конец времён: урон и оглушение, игроков откатывает на 3 секунды назад.
+function Handlers.EndOfTime(ctx)
+	local radius = Abilities.ById.EndOfTime.range
+	local center = ctx.root.Position
+	Fx.sound("Magic", center, 1.2, 0.3)
+	Fx.clock(center, GREEN, radius * 0.4, 1.5)
+	Fx.shockwave(center - Vector3.new(0, 2.5, 0), GREEN, radius)
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		hit(ctx, target, 20)
+		Status.apply(target.humanoid, "Stun", 1)
+		local victim = Players:GetPlayerFromCharacter(target.model)
+		local sample = victim and Timeline.at(victim, 3)
+		if victim and sample then
+			Fx.afterimage(target.model, GREEN, 0.6)
+			target.model:PivotTo(sample.cframe)
+			Timeline.clear(victim)
+			Kit.screenFx:FireClient(victim, "Rewind", sample.cframe.Position)
+		end
 	end
 end
 
