@@ -87,7 +87,7 @@ local function reconcile(raw: any): PlayerData
 	if type(raw.EquippedSkin) == "string" and result.Skins[raw.EquippedSkin] then
 		result.EquippedSkin = raw.EquippedSkin
 	end
-	for _, stat in { "LokiKills", "UltronKills" } do
+	for _, stat in { "LokiKills", "UltronKills", "ThorKills" } do
 		local value = raw[stat]
 		if type(value) == "number" and value == value then
 			(result :: any)[stat] = math.max(0, math.floor(value))

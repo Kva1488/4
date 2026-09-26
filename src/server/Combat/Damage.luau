@@ -34,9 +34,10 @@ local notifyEvent = Remotes.event("Notify")
 local screenFxEvent = Remotes.event("ScreenFx")
 
 -- За какого героя копится каждая статистика.
-local PROGRESS_HERO: { [string]: string } = {
-	LokiKills = "Loki",
-	UltronKills = "Ultron",
+local PROGRESS_HERO: { [string]: { [string]: boolean } } = {
+	LokiKills = { Loki = true },
+	UltronKills = { Ultron = true },
+	ThorKills = { Thor = true, ThorStormbreaker = true },
 }
 
 local function asTarget(model: Model?): Target?
@@ -118,19 +119,28 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 	local unlocked: Heroes.Hero? = nil
 	DataService:Update(attacker, function(data)
 		data.Coins += amount
-		for _, upgraded in Heroes.List do
-			local unlock = upgraded.unlock
-			if unlock and PROGRESS_HERO[unlock.stat] == data.Hero then
-				local before = Heroes.isUnlocked(upgraded, data)
-				local stats = data :: any
-				stats[unlock.stat] += 1
-				-- Канон «Что, если…?»: Альтрон убил Таноса и забрал все камни.
-				if data.Hero == "Ultron" and victimHero == "Thanos" then
-					stats[unlock.stat] = math.max(stats[unlock.stat], unlock.count)
-				end
-				if not before and Heroes.isUnlocked(upgraded, data) then
-					unlocked = upgraded
-				end
+		local stats = data :: any
+		-- Что было открыто до этого убийства.
+		local before: { [string]: boolean } = {}
+		for _, hero in Heroes.List do
+			before[hero.id] = Heroes.isUnlocked(hero, data)
+		end
+		-- Каждая статистика растёт ровно на 1, даже если на неё завязано несколько героев.
+		for stat, heroes in PROGRESS_HERO do
+			if heroes[data.Hero] then
+				stats[stat] += 1
+			end
+		end
+		-- Канон «Что, если…?»: Альтрон убил Таноса и забрал все камни.
+		if data.Hero == "Ultron" and victimHero == "Thanos" then
+			local infinity = Heroes.ById.InfinityUltron.unlock
+			if infinity then
+				stats[infinity.stat] = math.max(stats[infinity.stat], infinity.count)
+			end
+		end
+		for _, hero in Heroes.List do
+			if not before[hero.id] and Heroes.isUnlocked(hero, data) then
+				unlocked = hero
 			end
 		end
 	end)

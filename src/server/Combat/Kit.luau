@@ -25,6 +25,8 @@ export type Context = {
 
 local Kit = {}
 
+local CHAIN_COLOR = Color3.fromRGB(140, 205, 255)
+
 Kit.screenFx = Remotes.event("ScreenFx")
 Kit.notify = Remotes.event("Notify")
 
@@ -42,6 +44,12 @@ function Kit.hit(
 )
 	local ability = Abilities.ById[ctx.abilityId]
 	local tint = colorOverride or ability.color
+	-- Пробуждение Тора: удары сильнее и перескакивают цепной молнией на соседнего врага.
+	local empoweredUntil = ctx.character:GetAttribute("EmpoweredUntil")
+	local empowered = typeof(empoweredUntil) == "number" and empoweredUntil > os.clock()
+	if empowered then
+		amount *= 1.3
+	end
 	Damage.deal(ctx.player, target.humanoid, amount * ctx.damageMult, {
 		source = ability.name,
 		color = tint,
@@ -49,6 +57,23 @@ function Kit.hit(
 	})
 	-- Искры при каждом попадании.
 	Fx.burst(target.root.Position, tint, 8, 45, "Spark")
+	if empowered and amount < math.huge then
+		local nearest: Damage.Target? = nil
+		local best = 15
+		for _, other in Damage.inRadius(target.root.Position, 15, ctx.character) do
+			local distance = (other.root.Position - target.root.Position).Magnitude
+			if other.model ~= target.model and distance < best then
+				nearest, best = other, distance
+			end
+		end
+		if nearest then
+			Fx.lightning(target.root.Position, nearest.root.Position, CHAIN_COLOR, 6, 0.25)
+			Damage.deal(ctx.player, nearest.humanoid, amount * ctx.damageMult * 0.35, {
+				source = ability.name,
+				color = CHAIN_COLOR,
+			})
+		end
+	end
 end
 
 -- Горизонтальное направление от персонажа к прицелу.

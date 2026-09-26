@@ -2,9 +2,18 @@
 -- Герои: у каждого свой набор способностей (Shared/Abilities, поле hero) и свой внешний вид.
 -- Усиленные версии открываются прогрессом за базового героя:
 -- • Локи → Локи, бог времени (финал 2 сезона сериала «Локи»);
--- • Альтрон → Альтрон бесконечности («Что, если…?», эпизоды 8–9).
+-- • Альтрон → Альтрон бесконечности («Что, если…?», эпизоды 8–9);
+-- • Тор с Мьёльниром → с Громсекирой («Война бесконечности») → с обоими («Финал»).
 
-export type HeroId = "Thanos" | "Loki" | "GodLoki" | "Ultron" | "InfinityUltron"
+export type HeroId =
+	"Thanos"
+	| "Loki"
+	| "GodLoki"
+	| "Ultron"
+	| "InfinityUltron"
+	| "Thor"
+	| "ThorStormbreaker"
+	| "ThorBoth"
 
 export type Hero = {
 	id: HeroId,
@@ -77,6 +86,36 @@ local List: { Hero } = {
 		robot = true,
 	},
 }
+
+table.insert(List, {
+	id = "Thor",
+	name = "Тор",
+	title = "Бог грома",
+	icon = "🔨",
+	color = Color3.fromRGB(120, 190, 255),
+	description = "Мьёльнир: бросок с возвратом, удар молнии, полёт на молоте, громовой удар о землю. "
+		.. "«Пробуждение» из «Рагнарёка» и ульта «Бог грома».",
+})
+table.insert(List, {
+	id = "ThorStormbreaker",
+	name = "Тор с Громсекирой",
+	title = "Король Асгарда",
+	icon = "🪓",
+	color = Color3.fromRGB(150, 210, 255),
+	description = "«Война бесконечности»: топор, выкованный на Нидавеллире из сердца звезды. "
+		.. "Биврёст, конус молний, прыжок грома и ульта «Дайте мне Таноса!».",
+	unlock = { stat = "ThorKills", count = 15, label = "убийств за Тора" },
+})
+table.insert(List, {
+	id = "ThorBoth",
+	name = "Тор: молот и топор",
+	title = "Достойнейший",
+	icon = "⚡",
+	color = Color3.fromRGB(200, 235, 255),
+	description = "Финальная битва «Финала»: Мьёльнир в одной руке, Громсекира в другой. "
+		.. "Двойные удары и броски, гроза, возвращение молота и ульта «Гнев Асгарда».",
+	unlock = { stat = "ThorKills", count = 40, label = "убийств за Тора (любого)" },
+})
 
 local ById: { [string]: Hero } = {}
 for _, hero in List do

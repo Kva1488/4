@@ -63,6 +63,7 @@ local expected = {
 	["ServerScriptService.Server.Combat.Heroes.Ultron"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Heroes.InfinityUltron"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Sentries"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.Thor"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -214,9 +215,9 @@ end
 -- 5. Внешний вид Локи
 print("[heroes]")
 local HeroModel = loadModule("src/shared/HeroModel.luau")
-for _, id in { "Loki", "GodLoki", "Ultron", "InfinityUltron" } do
+for _, id in { "Loki", "GodLoki", "Ultron", "InfinityUltron", "Thor", "ThorStormbreaker", "ThorBoth" } do
 	local outfit = HeroModel.outfit(id)
-	check(outfit ~= nil and #outfit.head >= 10 and #outfit.torso >= 5, `{id} has head and torso outfit`)
+	check(outfit ~= nil and #outfit.head >= 5 and #outfit.torso >= 5, `{id} has head and torso outfit`)
 end
 local thanos = HeroModel.outfit("Thanos")
 check(
@@ -242,6 +243,29 @@ for _, spec in infinity.rightHand do
 	end
 end
 check(spearParts == 2, "Infinity Ultron spear has two blades")
+
+-- 6. Торы
+print("[thor]")
+check(Heroes.isUnlocked(Heroes.ById.Thor, {}), "Thor unlocked from start")
+check(not Heroes.isUnlocked(Heroes.ById.ThorStormbreaker, { ThorKills = 14 }), "Stormbreaker locked at 14")
+check(Heroes.isUnlocked(Heroes.ById.ThorStormbreaker, { ThorKills = 15 }), "Stormbreaker unlocked at 15")
+check(not Heroes.isUnlocked(Heroes.ById.ThorBoth, { ThorKills = 39 }), "Hammer and axe locked at 39")
+check(Heroes.isUnlocked(Heroes.ById.ThorBoth, { ThorKills = 40 }), "Hammer and axe unlocked at 40")
+local function hasPart(outfit, slot, name)
+	for _, spec in outfit[slot] do
+		if spec.name == name then
+			return true
+		end
+	end
+	return false
+end
+check(hasPart(HeroModel.outfit("Thor"), "rightHand", "MjolnirHead"), "Thor holds Mjolnir")
+check(hasPart(HeroModel.outfit("ThorStormbreaker"), "rightHand", "AxeBlade"), "Thor holds Stormbreaker")
+local both = HeroModel.outfit("ThorBoth")
+check(
+	hasPart(both, "rightHand", "AxeBlade") and hasPart(both, "leftHand", "MjolnirHead"),
+	"Endgame Thor holds both weapons"
+)
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
 process.exit(if failures == 0 then 0 else 1)

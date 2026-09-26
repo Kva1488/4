@@ -429,4 +429,42 @@ function Fx.lightning(from: Vector3, to: Vector3, color: Color3, segments: numbe
 	end
 end
 
+-- Удар молнии с неба: несколько ломаных разрядов, ослепительная вспышка и кольцо.
+function Fx.lightningStrike(position: Vector3, color: Color3, height: number?)
+	local top = position + Vector3.new(math.random(-6, 6), height or 90, math.random(-6, 6))
+	for _ = 1, 3 do
+		Fx.lightning(top, position, color, 14, 0.35)
+	end
+	Fx.lightning(top, position, Color3.new(1, 1, 1), 14, 0.25)
+	Fx.beam(top, position, color, 1.4, 0.25)
+	Fx.sphere(position, Color3.new(1, 1, 1), 2, 9, 0.3)
+	Fx.ring(position, color, 10, 0.4)
+	Fx.flash(position, color, 50, 0.4)
+	Fx.burst(position, color, 30, 45, "Spark")
+end
+
+-- Радужный столб Биврёста.
+function Fx.bifrost(position: Vector3, duration: number)
+	local colors = {
+		Color3.fromRGB(255, 90, 90),
+		Color3.fromRGB(255, 190, 80),
+		Color3.fromRGB(120, 255, 140),
+		Color3.fromRGB(90, 180, 255),
+		Color3.fromRGB(200, 120, 255),
+	}
+	for i, color in colors do
+		local part = basePart(Enum.PartType.Cylinder, color)
+		local radius = 7 - i
+		part.Size = Vector3.new(200, radius * 2, radius * 2)
+		part.CFrame = CFrame.new(position + Vector3.new(0, 100, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		part.Transparency = 0.25 + i * 0.08
+		part.Parent = Fx.Folder
+		tween(part, duration, { Size = Vector3.new(200, 0, 0), Transparency = 1 })
+		Debris:AddItem(part, duration + 0.1)
+	end
+	Fx.ring(position, Color3.fromRGB(255, 200, 255), 14, duration)
+	Fx.flash(position, Color3.fromRGB(255, 200, 255), 60, duration)
+	Fx.burst(position, Color3.fromRGB(255, 180, 240), 60, 40)
+end
+
 return Fx

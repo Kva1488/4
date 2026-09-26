@@ -84,4 +84,45 @@ function Projectile.fire(options: Options)
 	end)
 end
 
+-- Бумеранг (Мьёльнир, Громсекира): летит до конца дальности или стены и возвращается к хозяину.
+-- makeVisual вызывается дважды — для полёта туда и обратно. onHit срабатывает по одному разу на каждом отрезке.
+function Projectile.boomerang(
+	options: Options,
+	owner: BasePart,
+	makeVisual: () -> BasePart,
+	onCaught: (() -> ())?
+)
+	local outward = table.clone(options)
+	outward.visual = makeVisual()
+	outward.onEnd = function(turnPoint: Vector3)
+		if options.onEnd then
+			options.onEnd(turnPoint)
+		end
+		if not owner.Parent then
+			return
+		end
+		local back = owner.Position - turnPoint
+		if back.Magnitude < 1 then
+			return
+		end
+		Projectile.fire({
+			origin = turnPoint,
+			direction = back.Unit,
+			speed = options.speed * 1.2,
+			range = back.Magnitude,
+			radius = options.radius,
+			owner = options.owner,
+			pierce = true,
+			visual = makeVisual(),
+			onHit = options.onHit,
+			onEnd = function()
+				if onCaught then
+					onCaught()
+				end
+			end,
+		})
+	end
+	Projectile.fire(outward)
+end
+
 return Projectile

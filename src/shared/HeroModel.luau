@@ -7,7 +7,19 @@
 -- +Y вверх, −Z вперёд (лицо), +X вправо.
 -- Используется HeroService (сборка на персонаже) и tools/export_hero (превью).
 
-export type Role = "plate" | "trim" | "cape" | "lining" | "steel" | "dark" | "glow" | "eye" | "gem" | "gold"
+export type Role =
+	"plate"
+	| "trim"
+	| "cape"
+	| "lining"
+	| "steel"
+	| "dark"
+	| "glow"
+	| "eye"
+	| "gem"
+	| "gold"
+	| "hair"
+	| "wood"
 
 export type PartSpec = {
 	name: string,
@@ -677,6 +689,219 @@ local function doubleSpear(): { PartSpec }
 	return parts
 end
 
+-------------------------------------------------------------------------------- ТОР
+
+-- Голова Тора: светлые волосы, борода. long — длинные волосы («Мстители», «Финал»),
+-- иначе короткая стрижка («Рагнарёк», «Война бесконечности»). glowEyes — глаза горят молниями.
+local function thorHead(long: boolean, glowEyes: boolean, braid: boolean): { PartSpec }
+	local parts: { PartSpec } = {
+		spec("HairTop", "hair", "Block", Vector3.new(1.3, 0.22, 1.32), CFrame.new(0, 0.62, 0.02)),
+		spec("Beard", "hair", "Block", Vector3.new(1.0, 0.36, 0.14), CFrame.new(0, -0.44, -0.6)),
+		spec("Moustache", "hair", "Block", Vector3.new(0.6, 0.08, 0.08), CFrame.new(0, -0.22, -0.63)),
+		spec("SideburnL", "hair", "Block", Vector3.new(0.1, 0.5, 0.4), CFrame.new(-0.63, -0.1, -0.3)),
+		spec("SideburnR", "hair", "Block", Vector3.new(0.1, 0.5, 0.4), CFrame.new(0.63, -0.1, -0.3)),
+	}
+	if long then
+		table.insert(
+			parts,
+			spec("HairBack", "hair", "Block", Vector3.new(1.32, 1.35, 0.25), CFrame.new(0, -0.05, 0.6))
+		)
+		table.insert(
+			parts,
+			spec("HairSideL", "hair", "Block", Vector3.new(0.18, 1.0, 0.7), CFrame.new(-0.66, 0.05, 0.25))
+		)
+		table.insert(
+			parts,
+			spec("HairSideR", "hair", "Block", Vector3.new(0.18, 1.0, 0.7), CFrame.new(0.66, 0.05, 0.25))
+		)
+	else
+		table.insert(
+			parts,
+			spec("HairBack", "hair", "Block", Vector3.new(1.3, 0.55, 0.16), CFrame.new(0, 0.3, 0.62))
+		)
+	end
+	if braid then
+		-- «Финал»: заплетённая борода.
+		for i = 1, 3 do
+			table.insert(
+				parts,
+				spec(
+					`Braid{i}`,
+					"hair",
+					"Ball",
+					Vector3.one * (0.26 - i * 0.03),
+					CFrame.new(0, -0.62 - i * 0.18, -0.58)
+				)
+			)
+		end
+	end
+	if glowEyes then
+		table.insert(
+			parts,
+			spec("EyeL", "eye", "Block", Vector3.new(0.24, 0.08, 0.04), CFrame.new(-0.22, 0.1, -0.61))
+		)
+		table.insert(
+			parts,
+			spec("EyeR", "eye", "Block", Vector3.new(0.24, 0.08, 0.04), CFrame.new(0.22, 0.1, -0.61))
+		)
+	end
+	return parts
+end
+
+-- Доспех Тора: тёмная кираса с круглыми серебряными дисками, наплечники, пояс, красный плащ.
+local function thorTorso(): { PartSpec }
+	local parts: { PartSpec } = {
+		spec("Cuirass", "plate", "Block", Vector3.new(2.08, 1.5, 1.08), CFrame.new(0, 0.05, 0)),
+		spec("Belt", "trim", "Block", Vector3.new(2.1, 0.2, 1.1), CFrame.new(0, -0.82, 0)),
+		spec("CapeClasp", "trim", "Block", Vector3.new(2.0, 0.3, 0.22), CFrame.new(0, 0.8, 0.5)),
+	}
+	local index = 0
+	for _, y in { 0.45, 0.05, -0.35 } do
+		for _, x in { -0.45, 0.45 } do
+			index += 1
+			table.insert(
+				parts,
+				spec(
+					`Disc{index}`,
+					"trim",
+					"Cylinder",
+					Vector3.new(0.06, 0.38, 0.38),
+					CFrame.new(x, y, -0.56) * ALONG_Z
+				)
+			)
+			table.insert(
+				parts,
+				spec(
+					`DiscCore{index}`,
+					"plate",
+					"Cylinder",
+					Vector3.new(0.07, 0.2, 0.2),
+					CFrame.new(x, y, -0.57) * ALONG_Z
+				)
+			)
+		end
+	end
+	for i, side in { -1, 1 } do
+		table.insert(
+			parts,
+			spec(
+				`Pauldron{i}`,
+				"trim",
+				"Ball",
+				Vector3.new(1.05, 0.55, 1.05),
+				CFrame.new(1.02 * side, 0.74, 0)
+			)
+		)
+		table.insert(
+			parts,
+			spec(
+				`Clasp{i}`,
+				"trim",
+				"Cylinder",
+				Vector3.new(0.08, 0.34, 0.34),
+				CFrame.new(0.72 * side, 0.72, -0.52) * ALONG_Z
+			)
+		)
+	end
+	capeParts(parts, nil)
+	return parts
+end
+
+local function thorBracer(): { PartSpec }
+	return {
+		spec("Bracer", "trim", "Block", Vector3.new(1.08, 0.5, 1.08), CFrame.new(0, 0.35, 0)),
+		spec("BracerBand", "plate", "Block", Vector3.new(1.1, 0.1, 1.1), CFrame.new(0, 0.35, 0)),
+	}
+end
+
+-- Мьёльнир: рукоять в кулаке, голова молота висит ниже кисти, ремешок на навершии.
+local function mjolnir(): { PartSpec }
+	local parts = thorBracer()
+	table.insert(
+		parts,
+		spec(
+			"MjolnirHandle",
+			"dark",
+			"Cylinder",
+			Vector3.new(1.0, 0.2, 0.2),
+			CFrame.new(0, -0.35, -0.1) * ALONG_Y
+		)
+	)
+	table.insert(
+		parts,
+		spec(
+			"MjolnirPommel",
+			"trim",
+			"Cylinder",
+			Vector3.new(0.12, 0.26, 0.26),
+			CFrame.new(0, 0.18, -0.1) * ALONG_Y
+		)
+	)
+	table.insert(
+		parts,
+		spec("MjolnirStrap", "dark", "Block", Vector3.new(0.05, 0.4, 0.2), CFrame.new(0, 0.38, -0.1))
+	)
+	table.insert(
+		parts,
+		spec("MjolnirHead", "steel", "Block", Vector3.new(0.6, 0.6, 1.0), CFrame.new(0, -1.1, -0.1))
+	)
+	-- Гравировка-узор на гранях головы.
+	for i, z in { -0.45, 0.45 } do
+		table.insert(
+			parts,
+			spec(
+				`MjolnirFace{i}`,
+				"trim",
+				"Block",
+				Vector3.new(0.5, 0.5, 0.06),
+				CFrame.new(0, -1.1, -0.1 + z)
+			)
+		)
+	end
+	table.insert(
+		parts,
+		spec("MjolnirRune", "eye", "Block", Vector3.new(0.62, 0.06, 0.6), CFrame.new(0, -1.1, -0.1))
+	)
+	return parts
+end
+
+-- Громсекира: длинная рукоять из руки Грута, топор сверху у плеча, с обратной стороны — молот.
+local function stormbreaker(): { PartSpec }
+	local parts = thorBracer()
+	local c = CFrame.new(0, 0.4, -0.6)
+	table.insert(parts, spec("AxeHandle", "wood", "Cylinder", Vector3.new(3.0, 0.2, 0.2), c * ALONG_Y))
+	table.insert(
+		parts,
+		spec("AxeWrap", "dark", "Cylinder", Vector3.new(0.7, 0.24, 0.24), CFrame.new(0, 0, -0.6) * ALONG_Y)
+	)
+	table.insert(parts, spec("AxeRoot", "wood", "Ball", Vector3.one * 0.3, c * CFrame.new(0, -1.55, 0)))
+	local head = c * CFrame.new(0, 1.3, 0)
+	table.insert(
+		parts,
+		spec("AxeBlade", "steel", "Block", Vector3.new(0.14, 1.05, 1.0), head * CFrame.new(0, 0, -0.55))
+	)
+	table.insert(
+		parts,
+		spec("AxeEdge", "eye", "Block", Vector3.new(0.16, 1.1, 0.08), head * CFrame.new(0, 0, -1.07))
+	)
+	table.insert(
+		parts,
+		spec(
+			"AxeBeard",
+			"steel",
+			"Block",
+			Vector3.new(0.12, 0.35, 0.5),
+			head * CFrame.new(0, -0.55, -0.75) * CFrame.Angles(rad(-25), 0, 0)
+		)
+	)
+	table.insert(
+		parts,
+		spec("AxeHammer", "steel", "Block", Vector3.new(0.4, 0.45, 0.45), head * CFrame.new(0, 0, 0.3))
+	)
+	table.insert(parts, spec("AxeCollar", "trim", "Cylinder", Vector3.new(0.5, 0.3, 0.3), head * ALONG_Y))
+	return parts
+end
+
 function HeroModel.outfit(heroId: string): Outfit?
 	if heroId == "Thanos" then
 		-- Правую руку занимает Перчатка Бесконечности (GauntletService).
@@ -698,6 +923,27 @@ function HeroModel.outfit(heroId: string): Outfit?
 			torso = infinityTorso(),
 			rightHand = doubleSpear(),
 			leftHand = infinityGauntlet(),
+		}
+	elseif heroId == "Thor" then
+		return {
+			head = thorHead(true, false, false),
+			torso = thorTorso(),
+			rightHand = mjolnir(),
+			leftHand = thorBracer(),
+		}
+	elseif heroId == "ThorStormbreaker" then
+		return {
+			head = thorHead(false, true, false),
+			torso = thorTorso(),
+			rightHand = stormbreaker(),
+			leftHand = thorBracer(),
+		}
+	elseif heroId == "ThorBoth" then
+		return {
+			head = thorHead(true, true, true),
+			torso = thorTorso(),
+			rightHand = stormbreaker(),
+			leftHand = mjolnir(),
 		}
 	end
 	return nil

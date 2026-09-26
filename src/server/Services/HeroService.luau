@@ -40,8 +40,24 @@ local STEEL: Look = { color = Color3.fromRGB(215, 225, 232), material = Enum.Mat
 local TIME_GLOW: Look = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon }
 local RED_GLOW: Look = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon }
 
+-- Общий гардероб трёх Торов.
+local THOR_LOOK: { [string]: Look } = {
+	plate = { color = Color3.fromRGB(45, 48, 58), material = Enum.Material.Leather },
+	trim = { color = Color3.fromRGB(180, 185, 195), material = Enum.Material.Metal },
+	steel = { color = Color3.fromRGB(135, 140, 150), material = Enum.Material.Metal },
+	cape = { color = Color3.fromRGB(165, 22, 28), material = Enum.Material.Fabric },
+	hair = { color = Color3.fromRGB(210, 170, 95), material = Enum.Material.SmoothPlastic },
+	wood = { color = Color3.fromRGB(115, 78, 45), material = Enum.Material.Wood },
+	dark = DARK,
+	eye = { color = Color3.fromRGB(150, 215, 255), material = Enum.Material.Neon },
+	gold = GOLD,
+}
+
 -- Цвет и материал каждой роли детали у каждого героя.
 local LOOKS: { [string]: { [string]: Look } } = {
+	Thor = THOR_LOOK,
+	ThorStormbreaker = THOR_LOOK,
+	ThorBoth = THOR_LOOK,
 	Thanos = {
 		plate = { color = Color3.fromRGB(62, 76, 102), material = Enum.Material.Metal },
 		trim = { color = Color3.fromRGB(40, 44, 58), material = Enum.Material.Leather },

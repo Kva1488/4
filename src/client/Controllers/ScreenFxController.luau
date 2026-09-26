@@ -206,6 +206,19 @@ local function onSokovia()
 	)
 end
 
+-- Тор: вспышки молний и название приёма.
+local function onThunder(title: string)
+	local thunder = Color3.fromRGB(150, 210, 255)
+	showBanner(string.upper(title), "⚡", thunder, 2)
+	ScreenFxController.fovPunch(10)
+	for i = 0, 2 do
+		task.delay(i * 0.18, function()
+			flashScreen(if i == 1 then Color3.new(1, 1, 1) else thunder, 0.55, 0.2)
+		end)
+	end
+	tint(Color3.fromRGB(200, 225, 255), -0.3, 1.2)
+end
+
 -- Конец мультивселенной: шесть вспышек цветов камней, затем белый экран.
 local function onMultiverseEnd()
 	setBars(true)
@@ -351,6 +364,8 @@ function ScreenFxController:Start()
 			onSokovia()
 		elseif kind == "MultiverseEnd" then
 			onMultiverseEnd()
+		elseif kind == "Thunder" then
+			onThunder(tostring(extra))
 		end
 	end)
 	Remotes.event("StoneCollected").OnClientEvent:Connect(onStoneCollected)
