@@ -7,6 +7,12 @@ local Config = {
 
 	DefaultData = {
 		Coins = 0,
+		Stones = {} :: { [string]: boolean }, -- собранные Камни Бесконечности
+	},
+
+	Rewards = {
+		DummyKill = 10,
+		PlayerKill = 25,
 	},
 }
 

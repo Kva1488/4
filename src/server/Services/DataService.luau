@@ -1,5 +1,5 @@
 --!strict
--- Сохранение данных игроков в DataStore.
+-- Сохранение данных игроков в DataStore и их отправка клиенту.
 -- Загрузка с повторами, автосейв, сохранение при выходе и при выключении сервера.
 -- В Studio без включённого "Enable Studio Access to API Services" работает в памяти.
 
@@ -9,6 +9,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Items = require(ReplicatedStorage.Shared.Items)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 type PlayerData = Config.PlayerData
 
@@ -20,6 +22,10 @@ local store: DataStore? = nil
 local profiles: { [Player]: PlayerData } = {}
 local readOnly: { [Player]: true } = {}
 local changedListeners: { (Player, PlayerData) -> () } = {}
+local savesInFlight = 0
+
+local dataChanged: RemoteEvent
+local getData: RemoteFunction
 
 local function withRetries<T>(fn: () -> T): (boolean, T | string)
 	local lastErr: any
@@ -34,12 +40,30 @@ local function withRetries<T>(fn: () -> T): (boolean, T | string)
 	return false, tostring(lastErr)
 end
 
-local function reconcile(data: any): PlayerData
-	local result = table.clone(Config.DefaultData) :: any
-	if type(data) == "table" then
-		for key, value in data do
-			if result[key] ~= nil and typeof(value) == typeof(result[key]) then
-				result[key] = value
+local function deepCopy<T>(value: T): T
+	if type(value) ~= "table" then
+		return value
+	end
+	local copy = {}
+	for k, v in value :: any do
+		copy[k] = deepCopy(v)
+	end
+	return copy :: any
+end
+
+-- Берём дефолтные данные и переносим из сохранения только корректные поля.
+local function reconcile(raw: any): PlayerData
+	local result = deepCopy(Config.DefaultData)
+	if type(raw) ~= "table" then
+		return result
+	end
+	if type(raw.Coins) == "number" and raw.Coins == raw.Coins then
+		result.Coins = math.max(0, math.floor(raw.Coins))
+	end
+	if type(raw.Stones) == "table" then
+		for id, owned in raw.Stones do
+			if Items.StoneById[id] and owned == true then
+				result.Stones[id] = true
 			end
 		end
 	end
@@ -55,13 +79,24 @@ local function save(player: Player)
 	if not data or not store or readOnly[player] then
 		return
 	end
+	savesInFlight += 1
 	local ok, err = withRetries(function()
 		return (store :: DataStore):UpdateAsync(key(player), function()
 			return data
 		end)
 	end)
+	savesInFlight -= 1
 	if not ok then
 		warn(`[DataService] save failed for {player.Name}: {err}`)
+	end
+end
+
+local function notifyChanged(player: Player, data: PlayerData)
+	for _, listener in changedListeners do
+		task.spawn(listener, player, data)
+	end
+	if player.Parent == Players then
+		dataChanged:FireClient(player, data)
 	end
 end
 
@@ -88,13 +123,11 @@ local function load(player: Player)
 		end
 	end
 
-	if not player.Parent then
+	if player.Parent ~= Players then
 		return
 	end
 	profiles[player] = reconcile(raw)
-	for _, listener in changedListeners do
-		task.spawn(listener, player, profiles[player])
-	end
+	notifyChanged(player, profiles[player])
 end
 
 function DataService:Get(player: Player): PlayerData?
@@ -108,9 +141,7 @@ function DataService:Update(player: Player, mutator: (PlayerData) -> ())
 		return
 	end
 	mutator(data)
-	for _, listener in changedListeners do
-		task.spawn(listener, player, data)
-	end
+	notifyChanged(player, data)
 end
 
 function DataService:OnChanged(listener: (Player, PlayerData) -> ())
@@ -121,6 +152,12 @@ function DataService:OnChanged(listener: (Player, PlayerData) -> ())
 end
 
 function DataService:Init()
+	dataChanged = Remotes.event("DataChanged")
+	getData = Remotes.func("GetData")
+	getData.OnServerInvoke = function(player)
+		return profiles[player]
+	end
+
 	local ok, result = pcall(function()
 		return DataStoreService:GetDataStore(Config.DataStoreName)
 	end)
@@ -146,15 +183,12 @@ function DataService:Start()
 	end)
 
 	game:BindToClose(function()
-		local pending = 0
 		for player in profiles do
-			pending += 1
-			task.spawn(function()
-				save(player)
-				pending -= 1
-			end)
+			task.spawn(save, player)
 		end
-		while pending > 0 do
+		-- Ждём и эти сохранения, и те, что начались в PlayerRemoving.
+		task.wait()
+		while savesInFlight > 0 do
 			task.wait()
 		end
 	end)

@@ -6,9 +6,17 @@
 
 | Папка | Куда попадает в Studio | Что там |
 |---|---|---|
-| `src/shared/` | `ReplicatedStorage.Shared` | Общие модули: `Config`, `Remotes` |
-| `src/server/` | `ServerScriptService.Server` | `init.server.luau` загружает `Services/*` |
-| `src/client/` | `StarterPlayer.StarterPlayerScripts.Client` | `init.client.luau` загружает `Controllers/*` |
+| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Config`, `Remotes` |
+| `src/server/Services/` | `ServerScriptService.Server.Services` | Сервисы, их автоматически загружает `init.server.luau` |
+| `src/server/Combat/` | `ServerScriptService.Server.Combat` | `AbilityHandlers`, `Damage`, `Status`, `Fx`. Загрузчик их не трогает |
+| `src/client/Controllers/` | `...StarterPlayerScripts.Client.Controllers` | Контроллеры, их автоматически загружает `init.client.luau` |
+| `src/client/` | `...StarterPlayerScripts.Client` | `PlayerState` (копия данных игрока), `Ui` (хелперы интерфейса) |
+
+### Как добавить способность
+
+1. Добавь запись в `src/shared/Abilities.luau`: id, клавиша, перезарядка, `requires`.
+2. Добавь `function Handlers.<id>(ctx)` в `src/server/Combat/AbilityHandlers.luau`.
+3. Панель, блокировка и инвентарь подхватят её автоматически. `tools/verify.luau` проверит, что обработчик есть, а клавиша ни с чем не пересекается.
 
 Карта дерева лежит в `default.project.json`, там же Baseplate, SpawnLocation и Lighting.
 
@@ -25,6 +33,7 @@
 stylua src            # форматирование
 selene src            # линтер (нужен доступ к setup.rbxcdn.com для генерации roblox std)
 rojo build -o Game.rbxl  # сборка place-файла
+lune run tools/verify.luau Game.rbxl  # проверка структуры и данных
 ```
 
 CI (`.github/workflows/ci.yml`) прогоняет эти же проверки и выкладывает `Game.rbxl` как артефакт.

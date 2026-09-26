@@ -1,0 +1,90 @@
+-- Проверка проекта: структура собранного Game.rbxl и согласованность предметов/способностей.
+-- Запуск: rojo build -o Game.rbxl && lune run tools/verify.luau Game.rbxl
+
+local fs = require("@lune/fs")
+local roblox = require("@lune/roblox")
+local luau = require("@lune/luau")
+local process = require("@lune/process")
+
+local failures = 0
+local function check(cond, msg)
+	if cond then print("  ok   " .. msg) else failures += 1; print("  FAIL " .. msg) end
+end
+
+-- 1. Структура собранного place-файла
+print("[place]")
+local game = roblox.deserializePlace(fs.readFile(process.args[1]))
+local function find(path)
+	local node = game
+	for part in string.gmatch(path, "[^%.]+") do
+		node = if node == game then game:GetService(part) else node:FindFirstChild(part)
+		if not node then return nil end
+	end
+	return node
+end
+local expected = {
+	["ServerScriptService.Server"] = "Script",
+	["ServerScriptService.Server.Services.DataService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.CombatService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.StoneService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.GauntletService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.DummyService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.LeaderstatsService"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.AbilityHandlers"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Damage"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Status"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Fx"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Items"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Abilities"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Config"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Remotes"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
+	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.AbilityController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.InventoryController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.NotifyController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.StoneVisualsController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.HudController"] = "ModuleScript",
+	["Workspace.Baseplate"] = "Part",
+	["Workspace.SpawnLocation"] = "SpawnLocation",
+}
+for path, className in expected do
+	local node = find(path)
+	check(node ~= nil and node.ClassName == className, `{path} is {className}`)
+end
+
+-- 2. Согласованность данных Items / Abilities / обработчиков
+print("[data]")
+local env = { Color3 = roblox.Color3, Enum = roblox.Enum, table = table, string = string, math = math,
+	ipairs = ipairs, pairs = pairs, typeof = typeof, type = type, print = print }
+local function loadModule(path)
+	return luau.load(fs.readFile(path), { debugName = path, environment = env })()
+end
+local Items = loadModule("src/shared/Items.luau")
+local Abilities = loadModule("src/shared/Abilities.luau")
+local handlersSource = fs.readFile("src/server/Combat/AbilityHandlers.luau")
+
+check(#Items.Stones == 6, "6 stones")
+local keys = {}
+for _, a in Abilities.List do
+	check(string.find(handlersSource, "function Handlers." .. a.id .. "%(") ~= nil, `handler for {a.id}`)
+	check(not keys[a.input], `unique input for {a.id} ({a.keyLabel})`)
+	keys[a.input] = true
+	for _, s in a.requires do
+		check(Items.StoneById[s] ~= nil, `{a.id} requires valid stone {s}`)
+	end
+end
+for _, s in Items.Stones do
+	local a = Abilities.ById[s.ability]
+	check(a ~= nil and a.requires[1] == s.id and #a.requires == 1, `{s.id} unlocks {s.ability}`)
+end
+check(not Abilities.isUnlocked(Abilities.ById.Snap, { Power = true }), "Snap locked with 1 stone")
+local all = {}
+for _, s in Items.Stones do all[s.id] = true end
+check(Abilities.isUnlocked(Abilities.ById.Snap, all), "Snap unlocked with all stones")
+check(Abilities.isUnlocked(Abilities.ById.Punch, nil), "Punch always unlocked")
+check(Items.countStones(all) == 6 and Items.countStones(nil) == 0, "countStones")
+
+print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
+process.exit(if failures == 0 then 0 else 1)
