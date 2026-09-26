@@ -1,7 +1,8 @@
 --!strict
 -- Анимация декора на клиенте (без нагрузки на сервер и сеть):
 -- • детали с тегом "Spin" (кристаллы на колоннах арены) вращаются и покачиваются;
--- • радужные Перчатки (атрибут Rainbow у детали Glove) переливаются цветами;
+-- • радужные Перчатки (атрибут Rainbow у модели InfinityGauntlet) переливаются цветами,
+--   а собранные камни во всех перчатках мягко "дышат";
 -- • всплески частиц по событию "Burst" от сервера (удары, взрывы, подбор камней).
 
 local CollectionService = game:GetService("CollectionService")
@@ -31,17 +32,16 @@ local function trackSpin(instance: Instance)
 	end
 end
 
-local function findGloves(): { BasePart }
-	local gloves = {}
+local function gauntlets(): { Instance }
+	local list = {}
 	for _, player in Players:GetPlayers() do
 		local character = player.Character
 		local gauntlet = character and character:FindFirstChild("InfinityGauntlet")
-		local glove = gauntlet and gauntlet:FindFirstChild("Glove")
-		if glove and glove:IsA("BasePart") and glove:GetAttribute("Rainbow") then
-			table.insert(gloves, glove)
+		if gauntlet then
+			table.insert(list, gauntlet)
 		end
 	end
-	return gloves
+	return list
 end
 
 local function burst(position: Vector3, color: Color3, count: number, speed: number, texture: string)
@@ -100,11 +100,29 @@ function WorldFxController:Start()
 		end
 
 		local rainbow = Shop.skinColor(Shop.SkinById.Rainbow, t)
-		for _, glove in findGloves() do
-			glove.Color = rainbow
-			local light = glove:FindFirstChildOfClass("PointLight")
-			if light then
-				light.Color = rainbow
+		local darkRainbow = rainbow:Lerp(Color3.new(0, 0, 0), 0.38)
+		for _, gauntlet in gauntlets() do
+			local isRainbow = gauntlet:GetAttribute("Rainbow") == true
+			for _, part in gauntlet:GetChildren() do
+				if not part:IsA("BasePart") then
+					continue
+				end
+				local role = part:GetAttribute("Role")
+				if role == "gem" and part.Material == Enum.Material.Neon then
+					-- Собранные камни мягко "дышат".
+					part.Transparency = 0.12 + math.sin(t * 3 + part.Position.X) * 0.12
+				elseif isRainbow and role == "plate" then
+					part.Color = rainbow
+				elseif isRainbow and role == "trim" then
+					part.Color = darkRainbow
+				end
+			end
+			if isRainbow then
+				local glove = gauntlet:FindFirstChild("Glove")
+				local light = glove and glove:FindFirstChildOfClass("PointLight")
+				if light then
+					light.Color = rainbow
+				end
 			end
 		end
 	end)

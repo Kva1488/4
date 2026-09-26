@@ -3,6 +3,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -38,7 +39,38 @@ local details: {
 	name: TextLabel,
 	status: TextLabel,
 	body: TextLabel,
+	scroll: ScrollingFrame,
+	viewport: ViewportFrame,
 }
+local previewModel: Model? = nil
+
+-- 3D-превью: копия настоящей перчатки с персонажа (со скином и собранными камнями).
+local function refreshPreview()
+	if previewModel then
+		previewModel:Destroy()
+		previewModel = nil
+	end
+	local character = player.Character
+	local source = character and character:FindFirstChild("InfinityGauntlet")
+	if not source then
+		return
+	end
+	local copy = source:Clone() :: Model
+	for _, descendant in copy:GetDescendants() do
+		if
+			descendant:IsA("JointInstance")
+			or descendant:IsA("Trail")
+			or descendant:IsA("ParticleEmitter")
+		then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.Anchored = true
+		end
+	end
+	copy.PrimaryPart = copy:FindFirstChild("Glove") :: BasePart?
+	copy.Parent = details.viewport
+	previewModel = copy
+end
 local progressLabel: TextLabel
 
 local function equippedSkin(): Shop.Skin
@@ -74,8 +106,16 @@ local function renderDetails()
 			end
 		end
 		details.body.Text = table.concat(lines, "\n")
+		details.viewport.Visible = true
+		details.scroll.Position = UDim2.fromOffset(14, 196)
+		details.scroll.Size = UDim2.fromOffset(280, 112)
+		refreshPreview()
 		return
 	end
+
+	details.viewport.Visible = false
+	details.scroll.Position = UDim2.fromOffset(14, 84)
+	details.scroll.Size = UDim2.fromOffset(280, 224)
 
 	local stone = Items.StoneById[selectedId]
 	local owned = stones[stone.id] == true
@@ -286,7 +326,38 @@ local function build()
 	}, { Ui.corner(12) })
 	local icon = Ui.gem(Items.Gauntlet.color, UDim2.fromOffset(56, 56), info)
 	icon.Position = UDim2.fromOffset(14, 14)
+
+	local viewport = Ui.create("ViewportFrame", {
+		Position = UDim2.fromOffset(14, 72),
+		Size = UDim2.fromOffset(274, 120),
+		BackgroundColor3 = Color3.fromRGB(12, 10, 18),
+		BackgroundTransparency = 0.2,
+		Ambient = Color3.fromRGB(150, 140, 130),
+		LightColor = Color3.fromRGB(255, 240, 220),
+		LightDirection = Vector3.new(-1, -1, -1),
+		Visible = false,
+		Parent = info,
+	}, { Ui.corner(10) })
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.CFrame = CFrame.lookAt(Vector3.new(0.15, 0, 5.5), Vector3.new(0.15, 0, 0))
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	local scroll = Ui.create("ScrollingFrame", {
+		Position = UDim2.fromOffset(14, 84),
+		Size = UDim2.fromOffset(280, 224),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		ScrollBarImageColor3 = Ui.Colors.Gold,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Parent = info,
+	})
+
 	details = {
+		viewport = viewport,
+		scroll = scroll,
 		icon = icon,
 		name = Ui.label({
 			Size = UDim2.fromOffset(214, 26),
@@ -316,17 +387,7 @@ local function build()
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Font = Enum.Font.Gotham,
 			Text = "",
-			Parent = Ui.create("ScrollingFrame", {
-				Position = UDim2.fromOffset(14, 84),
-				Size = UDim2.fromOffset(280, 224),
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				ScrollBarThickness = 4,
-				ScrollBarImageColor3 = Ui.Colors.Gold,
-				CanvasSize = UDim2.new(),
-				AutomaticCanvasSize = Enum.AutomaticSize.Y,
-				Parent = info,
-			}),
+			Parent = scroll,
 		}),
 	}
 end
@@ -342,6 +403,18 @@ function InventoryController:Start()
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if not gameProcessed and input.KeyCode == TOGGLE_KEY then
 			Ui.togglePanel("Inventory")
+		end
+	end)
+
+	-- Превью лежит горизонтально (пальцы вправо) и покачивается, показывая камни и скин.
+	RunService.RenderStepped:Connect(function()
+		local model = previewModel
+		if model and model.PrimaryPart and details.viewport.Visible and panel.Visible then
+			local t = os.clock()
+			local layDown = CFrame.Angles(0, 0, math.rad(90)) -- пальцы (−Y) смотрят вправо (+X)
+			local showBack = CFrame.Angles(0, math.rad(-90), 0) -- тыльная сторона (+X кисти) к камере
+			local sway = CFrame.Angles(math.sin(t * 0.9) * 0.35, math.sin(t * 0.6) * 0.5, 0)
+			model:PivotTo(sway * layDown * showBack)
 		end
 	end)
 end

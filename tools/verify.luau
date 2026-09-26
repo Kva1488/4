@@ -49,6 +49,7 @@ local expected = {
 	["ReplicatedStorage.Shared.Remotes"] = "ModuleScript",
 	["ReplicatedStorage.Shared.Shop"] = "ModuleScript",
 	["ReplicatedStorage.Shared.Sounds"] = "ModuleScript",
+	["ReplicatedStorage.Shared.GauntletModel"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -74,6 +75,8 @@ end
 -- 2. Согласованность данных Items / Abilities / обработчиков
 print("[data]")
 local env = {
+	CFrame = roblox.CFrame,
+	Vector3 = roblox.Vector3,
 	Color3 = roblox.Color3,
 	Enum = roblox.Enum,
 	table = table,
@@ -142,6 +145,25 @@ for _, upgrade in Shop.Upgrades do
 end
 check(Shop.cooldownMult({ Cooldown = 5 }) > 0.5, "cooldown mult stays sane at max")
 check(Shop.maxHealth(nil) == 100, "base max health 100")
+
+-- 4. Модель Перчатки: уникальные имена, у каждого камня есть гнездо и сам камень, размеры корректны
+print("[gauntlet]")
+local GauntletModel = loadModule("src/shared/GauntletModel.luau")
+local specs = GauntletModel.build(1)
+check(#specs >= 40, `gauntlet has {#specs} parts`)
+local names = {}
+for _, spec in specs do
+	check(not names[spec.name], `unique part name {spec.name}`)
+	names[spec.name] = spec
+	local size = spec.size
+	check(size.X > 0 and size.Y > 0 and size.Z > 0 and size.X == size.X, `positive size for {spec.name}`)
+end
+check(names.Glove ~= nil, "core part 'Glove' exists (light, aura)")
+check(names.Index2 ~= nil and names.Pinky2 ~= nil, "fingertips for swipe trail exist")
+for _, stone in Items.Stones do
+	check(names[stone.id] ~= nil and names[stone.id].role == "gem", `gem for {stone.id}`)
+	check(names[stone.id .. "Socket"] ~= nil, `socket for {stone.id}`)
+end
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
 process.exit(if failures == 0 then 0 else 1)

@@ -6,7 +6,7 @@
 
 | Папка | Куда попадает в Studio | Что там |
 |---|---|---|
-| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `Sounds`, `Config`, `Remotes` |
+| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Sounds`, `Config`, `Remotes` |
 | `src/server/Services/` | `ServerScriptService.Server.Services` | Сервисы, их автоматически загружает `init.server.luau` |
 | `src/server/Combat/` | `ServerScriptService.Server.Combat` | `AbilityHandlers`, `Damage`, `Status`, `Fx`. Загрузчик их не трогает |
 | `src/client/Controllers/` | `...StarterPlayerScripts.Client.Controllers` | Контроллеры, их автоматически загружает `init.client.luau` |
@@ -19,6 +19,10 @@
 3. Панель, блокировка и инвентарь подхватят её автоматически. `tools/verify.luau` проверит, что обработчик есть, а клавиша ни с чем не пересекается.
 
 Карта дерева лежит в `default.project.json`, там же SpawnLocation и Lighting (атмосфера, bloom, цветокоррекция). Рельеф и декор карты строит `MapService` при старте сервера.
+
+### Как менять форму перчатки
+
+Все детали описаны в `src/shared/GauntletModel.luau` в системе координат кисти: +Y к запястью, −Y к пальцам, +X тыльная сторона, −Z сторона большого пальца. Чтобы проверить форму без Studio, выгрузи геометрию командой `lune run tools/export_gauntlet.luau > gauntlet.json` и отрендери её (например, matplotlib, как в истории коммитов).
 
 ## Соглашения
 

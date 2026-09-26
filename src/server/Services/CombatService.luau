@@ -31,6 +31,7 @@ local POSES: { [string]: string } = {
 local function setPose(character: Model, abilityId: string)
 	poseCounter += 1
 	character:SetAttribute("Pose", POSES[abilityId] or "Cast")
+	character:SetAttribute("PoseAbility", abilityId)
 	character:SetAttribute("PoseId", poseCounter)
 end
 
