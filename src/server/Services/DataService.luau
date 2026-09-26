@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Heroes = require(ReplicatedStorage.Shared.Heroes)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
 type PlayerData = Config.PlayerData
@@ -85,6 +86,13 @@ local function reconcile(raw: any): PlayerData
 	end
 	if type(raw.EquippedSkin) == "string" and result.Skins[raw.EquippedSkin] then
 		result.EquippedSkin = raw.EquippedSkin
+	end
+	if type(raw.LokiKills) == "number" and raw.LokiKills == raw.LokiKills then
+		result.LokiKills = math.max(0, math.floor(raw.LokiKills))
+	end
+	local hero = if type(raw.Hero) == "string" then Heroes.ById[raw.Hero] else nil
+	if hero and Heroes.isUnlocked(hero, result.LokiKills) then
+		result.Hero = hero.id
 	end
 	return result
 end

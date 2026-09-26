@@ -11,6 +11,8 @@ local Config = {
 		Upgrades = { Damage = 0, Cooldown = 0, Health = 0 } :: { [string]: number },
 		Skins = { Gold = true } :: { [string]: boolean }, -- купленные скины Перчатки
 		EquippedSkin = "Gold",
+		Hero = "Thanos", -- текущий герой (Shared/Heroes)
+		LokiKills = 0, -- убийства за Локи (открывают Локи, бога времени)
 	},
 
 	Rewards = {

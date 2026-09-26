@@ -8,17 +8,23 @@
 |---|---|---|
 | `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Sounds`, `Config`, `Remotes` |
 | `src/server/Services/` | `ServerScriptService.Server.Services` | Сервисы, их автоматически загружает `init.server.luau` |
-| `src/server/Combat/` | `ServerScriptService.Server.Combat` | `AbilityHandlers`, `Damage`, `Status`, `Fx`. Загрузчик их не трогает |
+| `src/server/Combat/` | `ServerScriptService.Server.Combat` | `Heroes/<Герой>` (способности), `AbilityHandlers` (собирает их), `Kit` (общие хелперы), `Damage`, `Status`, `Fx`, `Projectile`, `Timeline`. Загрузчик их не трогает |
 | `src/client/Controllers/` | `...StarterPlayerScripts.Client.Controllers` | Контроллеры, их автоматически загружает `init.client.luau` |
 | `src/client/` | `...StarterPlayerScripts.Client` | `PlayerState` (копия данных игрока), `Ui` (хелперы интерфейса) |
 
 ### Как добавить способность
 
-1. Добавь запись в `src/shared/Abilities.luau`: id, клавиша, перезарядка, `requires`.
-2. Добавь `function Handlers.<id>(ctx)` в `src/server/Combat/AbilityHandlers.luau`.
+1. Добавь запись в `src/shared/Abilities.luau`: id, `hero`, клавиша, перезарядка, `requires` (камни нужны только Таносу).
+2. Добавь `function Handlers.<id>(ctx)` в `src/server/Combat/Heroes/<Герой>.luau`.
 3. Панель, блокировка и инвентарь подхватят её автоматически. `tools/verify.luau` проверит, что обработчик есть, а клавиша ни с чем не пересекается.
 
 Карта дерева лежит в `default.project.json`, там же SpawnLocation и Lighting (атмосфера, bloom, цветокоррекция). Рельеф и декор карты строит `MapService` при старте сервера.
+
+### Как добавить героя
+
+1. Добавь его в `src/shared/Heroes.luau`, а способности (с полем `hero`) — в `Abilities.luau`.
+2. Создай `src/server/Combat/Heroes/<Id>.luau`, который возвращает `{ Handlers = ... }`: `AbilityHandlers` подхватит его сам.
+3. Внешний вид опиши в `src/shared/HeroModel.luau` и в `LOOKS` внутри `HeroService`. Превью: `lune run tools/export_hero.luau <Id>`.
 
 ### Как менять форму перчатки
 

@@ -205,7 +205,7 @@ local function build()
 	local toggle = Ui.create("TextButton", {
 		Name = "Toggle",
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 16, 0.5, 0),
+		Position = UDim2.new(0, 16, 0.5, -96),
 		Size = UDim2.fromOffset(60, 60),
 		BackgroundColor3 = Ui.Colors.Panel,
 		BackgroundTransparency = 0.1,

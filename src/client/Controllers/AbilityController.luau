@@ -22,7 +22,8 @@ local player = Players.LocalPlayer
 
 local SLOT = 58
 local GAP = 6
-local SHAKE_ON = { PowerWave = 0.4, Meteor = 0.6, Snap = 1.2 }
+local SHAKE_ON =
+	{ PowerWave = 0.4, MoonRain = 0.7, RockPrison = 0.4, Snap = 1.2, Casket = 0.5, GloriousPurpose = 1.2 }
 local FOV_PUNCH = { basic = 2, stone = 6, combo = 10, ultimate = 0 }
 
 type Slot = {
@@ -239,24 +240,50 @@ local function refreshLocks()
 	end
 end
 
-local function buildHotbar()
-	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local columns = if touch then 6 else #Abilities.List
-	local rows = math.ceil(#Abilities.List / columns)
-	local width = columns * (SLOT + GAP) - GAP
-	local height = rows * (SLOT + GAP) - GAP
+local bar: Frame
+local barScale: UIScale
+local barWidth = 0
+local currentHero: string? = nil
+local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
+-- Подгоняем панель под ширину экрана (на телефоне оставляем место под джойстик и прыжок).
+local function fitBar()
+	local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
+		or Vector2.new(1280, 720)
+	local available = viewport.X * (if touch then 0.5 else 0.95)
+	barScale.Scale = math.min(1, available / math.max(barWidth, 1))
+end
+
+-- Кнопки способностей текущего героя.
+local function populate(heroId: string)
+	currentHero = heroId
+	for _, slot in slots do
+		slot.button:Destroy()
+	end
+	table.clear(slots)
+
+	local list = Abilities.forHero(heroId)
+	local columns = if touch then math.min(6, #list) else #list
+	local rows = math.ceil(#list / math.max(columns, 1))
+	barWidth = columns * (SLOT + GAP) - GAP
+	bar.Size = UDim2.fromOffset(barWidth, rows * (SLOT + GAP) - GAP)
+	for index, ability in list do
+		table.insert(slots, createSlot(ability, index, bar))
+	end
+	fitBar()
+end
+
+local function buildHotbar()
 	local gui = Ui.create("ScreenGui", {
 		Name = "Abilities",
 		ResetOnSpawn = false,
 		DisplayOrder = 5,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
-	local bar = Ui.create("Frame", {
+	bar = Ui.create("Frame", {
 		Name = "Hotbar",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -12),
-		Size = UDim2.fromOffset(width, height),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -267,23 +294,20 @@ local function buildHotbar()
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		}),
 	})
-
-	-- Масштабируем панель под ширину экрана (на телефоне оставляем место под джойстик и прыжок).
-	local scale = Ui.create("UIScale", { Parent = bar })
-	local function fit()
-		local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize
-			or Vector2.new(1280, 720)
-		local available = viewport.X * (if touch then 0.5 else 0.95)
-		scale.Scale = math.min(1, available / width)
-	end
-	fit()
+	barScale = Ui.create("UIScale", { Parent = bar })
 	if workspace.CurrentCamera then
-		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fit)
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitBar)
 	end
+	local data = PlayerState.get()
+	populate(if data then data.Hero else "Thanos")
+end
 
-	for index, ability in Abilities.List do
-		table.insert(slots, createSlot(ability, index, bar))
+local function onData()
+	local data = PlayerState.get()
+	if data and data.Hero ~= currentHero then
+		populate(data.Hero)
 	end
+	refreshLocks()
 end
 
 function AbilityController:Init()
@@ -296,7 +320,7 @@ function AbilityController:Start()
 
 	buildHotbar()
 	refreshLocks()
-	PlayerState.Changed:Connect(refreshLocks)
+	PlayerState.Changed:Connect(onData)
 
 	Remotes.event("AbilityCast").OnClientEvent:Connect(function(abilityId: string, cooldown: number?)
 		local ability = Abilities.ById[abilityId]

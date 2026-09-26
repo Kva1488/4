@@ -201,4 +201,192 @@ function Fx.pillar(position: Vector3, color: Color3, height: number, duration: n
 	Debris:AddItem(part, duration + 0.1)
 end
 
+-- Портал Камня Пространства: вертикальное кольцо из искр, развёрнутое к направлению look.
+function Fx.portal(position: Vector3, look: Vector3, color: Color3, radius: number, duration: number)
+	local flat = look * Vector3.new(1, 0, 1)
+	local facing = if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, -1)
+	local base = CFrame.lookAt(position, position + facing)
+	local segments = 16
+	for i = 1, segments do
+		local angle = (i / segments) * math.pi * 2
+		local part = basePart(Enum.PartType.Block, color)
+		part.Size = Vector3.new(radius * 0.42, 0.35, 0.35)
+		part.CFrame = base * CFrame.Angles(0, 0, angle) * CFrame.new(0, radius, 0)
+		part.Parent = Fx.Folder
+		tween(part, duration, { Transparency = 1, Size = Vector3.new(radius * 0.6, 0.05, 0.05) })
+		Debris:AddItem(part, duration + 0.1)
+	end
+	local disc = basePart(Enum.PartType.Cylinder, color)
+	disc.Size = Vector3.new(0.1, radius * 2, radius * 2)
+	disc.CFrame = base * CFrame.Angles(0, math.rad(90), 0)
+	disc.Transparency = 0.55
+	disc.Parent = Fx.Folder
+	tween(disc, duration, { Transparency = 1 })
+	Debris:AddItem(disc, duration + 0.1)
+end
+
+-- Дверь TVA (TemPad): оранжевая рамка с сияющим проёмом.
+function Fx.door(position: Vector3, look: Vector3, duration: number)
+	local orange = Color3.fromRGB(255, 150, 50)
+	local flat = look * Vector3.new(1, 0, 1)
+	local facing = if flat.Magnitude > 0.01 then flat.Unit else Vector3.new(0, 0, -1)
+	local base = CFrame.lookAt(position + Vector3.new(0, 1, 0), position + Vector3.new(0, 1, 0) + facing)
+	local pieces: { { size: Vector3, offset: CFrame } } = {
+		{ size = Vector3.new(0.35, 7.4, 0.35), offset = CFrame.new(-2, 0, 0) },
+		{ size = Vector3.new(0.35, 7.4, 0.35), offset = CFrame.new(2, 0, 0) },
+		{ size = Vector3.new(4.35, 0.35, 0.35), offset = CFrame.new(0, 3.7, 0) },
+		{ size = Vector3.new(4.35, 0.35, 0.35), offset = CFrame.new(0, -3.7, 0) },
+	}
+	for _, piece in pieces do
+		local part = basePart(Enum.PartType.Block, orange)
+		part.Size = piece.size
+		part.CFrame = base * piece.offset
+		part.Parent = Fx.Folder
+		tween(part, duration, { Transparency = 1 })
+		Debris:AddItem(part, duration + 0.1)
+	end
+	local glow = basePart(Enum.PartType.Block, Color3.fromRGB(255, 210, 140))
+	glow.Size = Vector3.new(3.7, 7, 0.1)
+	glow.CFrame = base
+	glow.Transparency = 0.3
+	glow.Parent = Fx.Folder
+	tween(glow, duration, { Transparency = 1 })
+	Debris:AddItem(glow, duration + 0.1)
+	Fx.flash(position, orange, 20, duration)
+end
+
+-- Растущая ветвь времени: цепочка светящихся сегментов, которые вырастают по очереди.
+function Fx.branch(points: { Vector3 }, color: Color3, width: number, lifetime: number, growTime: number?)
+	local grow = growTime or 0.3
+	local stepTime = grow / math.max(1, #points - 1)
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local length = (b - a).Magnitude
+		if length > 0.01 then
+			local thickness = width * (1 - (i - 1) / #points * 0.6)
+			local part = basePart(Enum.PartType.Block, color)
+			part.Size = Vector3.new(thickness, thickness, 0.01)
+			part.CFrame = CFrame.lookAt(a, b)
+			part.Transparency = 0.15
+			part.Parent = Fx.Folder
+			task.delay(stepTime * (i - 1), function()
+				tween(part, stepTime, {
+					Size = Vector3.new(thickness, thickness, length),
+					CFrame = CFrame.lookAt(a, b) * CFrame.new(0, 0, -length / 2),
+				}, Enum.EasingStyle.Linear)
+			end)
+			task.delay(lifetime, function()
+				tween(part, 0.5, { Transparency = 1 })
+			end)
+			Debris:AddItem(part, lifetime + 0.6)
+		end
+	end
+end
+
+-- Изогнутый путь от a к b с подъёмом посередине (для ветвей и нитей).
+function Fx.arc(a: Vector3, b: Vector3, lift: number, segments: number): { Vector3 }
+	local points = {}
+	for i = 0, segments do
+		local t = i / segments
+		local wobble = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * lift * 0.3
+		local point = a:Lerp(b, t) + Vector3.new(0, math.sin(t * math.pi) * lift, 0)
+		if i > 0 and i < segments then
+			point += wobble
+		end
+		table.insert(points, point)
+	end
+	return points
+end
+
+-- Распад реальности: модель покрывается кубами, как Дракс на Забвении.
+function Fx.cubify(model: Model, color: Color3, duration: number)
+	local palette =
+		{ color, Color3.fromRGB(255, 120, 150), Color3.fromRGB(255, 200, 120), Color3.fromRGB(180, 40, 60) }
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part.Transparency < 1 and part.Size.Magnitude > 0.5 then
+			for _ = 1, 3 do
+				local cube = basePart(Enum.PartType.Block, palette[math.random(1, #palette)])
+				cube.Material = Enum.Material.SmoothPlastic
+				local size = math.clamp(part.Size.Magnitude * 0.3, 0.3, 0.9)
+				cube.Size = Vector3.one * size
+				local offset = (Vector3.new(math.random(), math.random(), math.random()) - Vector3.one * 0.5)
+					* part.Size
+				cube.CFrame = part.CFrame
+					* CFrame.new(offset)
+					* CFrame.Angles(math.random() * 3, math.random() * 3, 0)
+				cube.Parent = Fx.Folder
+				task.delay(duration, function()
+					tween(cube, 0.35, { Size = Vector3.zero, Transparency = 1 })
+				end)
+				Debris:AddItem(cube, duration + 0.4)
+			end
+		end
+	end
+end
+
+-- Каменный кокон вокруг цели (Каменная тюрьма).
+function Fx.rockPrison(position: Vector3, duration: number)
+	local color = Color3.fromRGB(120, 90, 70)
+	for i = 1, 9 do
+		local angle = (i / 9) * math.pi * 2
+		local rock = basePart(Enum.PartType.Block, color)
+		rock.Material = Enum.Material.Rock
+		rock.Size = Vector3.new(2.6, 3.2 + math.random() * 1.5, 2.2)
+		local target = CFrame.new(
+			position + Vector3.new(math.cos(angle) * 1.6, (i % 3) * 1.4 - 1.2, math.sin(angle) * 1.6)
+		) * CFrame.Angles(math.random() - 0.5, angle, math.random() - 0.5)
+		rock.CFrame = target * CFrame.new(0, -6, 0)
+		rock.Transparency = 0
+		rock.Parent = Fx.Folder
+		tween(rock, 0.25, { CFrame = target }, Enum.EasingStyle.Back)
+		task.delay(duration, function()
+			tween(rock, 0.3, { Transparency = 1, Size = rock.Size * 0.3 })
+		end)
+		Debris:AddItem(rock, duration + 0.4)
+	end
+end
+
+-- Падающий осколок луны. Возвращает время до удара.
+function Fx.meteor(target: Vector3, fallTime: number): number
+	local rock = basePart(Enum.PartType.Block, Color3.fromRGB(90, 70, 70))
+	rock.Material = Enum.Material.Basalt
+	rock.Size = Vector3.new(3, 2.5, 3) * (0.8 + math.random() * 0.8)
+	local start = target + Vector3.new(math.random(-25, 25), 90, math.random(-25, 25))
+	rock.CFrame = CFrame.new(start) * CFrame.Angles(math.random() * 6, math.random() * 6, 0)
+	rock.Parent = Fx.Folder
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 140, 60)
+	glow.Range = 14
+	glow.Brightness = 3
+	glow.Parent = rock
+	tween(
+		rock,
+		fallTime,
+		{ CFrame = CFrame.new(target) * CFrame.Angles(math.random() * 6, math.random() * 6, 0) },
+		Enum.EasingStyle.Quad
+	)
+	task.delay(fallTime, function()
+		glow:Destroy()
+		tween(rock, 2, { Transparency = 1 })
+	end)
+	Debris:AddItem(rock, fallTime + 2.1)
+	return fallTime
+end
+
+-- Кольца-"циферблаты" времени вокруг точки (остановка и перемотка времени).
+function Fx.clock(position: Vector3, color: Color3, radius: number, duration: number)
+	for i = 1, 3 do
+		local ring = basePart(Enum.PartType.Cylinder, color)
+		ring.Size = Vector3.new(0.15, radius * (0.5 + i * 0.25), radius * (0.5 + i * 0.25))
+		ring.CFrame = CFrame.new(position) * CFrame.Angles(math.random() * 3, math.random() * 3, math.rad(90))
+		ring.Transparency = 0.5
+		ring.Parent = Fx.Folder
+		tween(ring, duration, {
+			CFrame = ring.CFrame * CFrame.Angles(math.rad(180 * i), 0, 0),
+			Transparency = 1,
+		}, Enum.EasingStyle.Linear)
+		Debris:AddItem(ring, duration + 0.1)
+	end
+end
+
 return Fx

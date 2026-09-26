@@ -185,6 +185,11 @@ local function build(player: Player, character: Model)
 	if not humanoid or character:FindFirstChild("InfinityGauntlet") then
 		return
 	end
+	-- Перчатка есть только у Таноса.
+	local data = DataService:Get(player)
+	if data and data.Hero ~= "Thanos" then
+		return
+	end
 	local mount, offset, scale = mountFor(character, humanoid)
 	if not mount then
 		return
@@ -227,8 +232,24 @@ function GauntletService:Start()
 	end
 
 	DataService:OnChanged(function(player, data: Config.PlayerData)
-		if player.Character then
-			refresh(player.Character, data)
+		local character = player.Character
+		if not character then
+			return
+		end
+		local gauntlet = character:FindFirstChild("InfinityGauntlet")
+		if data.Hero ~= "Thanos" then
+			-- Сменили героя: снимаем перчатку и возвращаем обычную кисть.
+			if gauntlet then
+				gauntlet:Destroy()
+				local hand = character:FindFirstChild("RightHand")
+				if hand and hand:IsA("BasePart") and not character:GetAttribute("Invisible") then
+					hand.Transparency = 0
+				end
+			end
+		elseif not gauntlet then
+			task.spawn(build, player, character)
+		else
+			refresh(character, data)
 		end
 	end)
 end

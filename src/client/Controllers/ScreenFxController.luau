@@ -40,8 +40,11 @@ local function tween(instance: Instance, duration: number, goal: { [string]: any
 	return t
 end
 
+-- Толчок FOV: положительный — "удар" наружу, отрицательный — рывок внутрь (перемотка).
 function ScreenFxController.fovPunch(amount: number)
-	punch = math.max(punch, amount)
+	if math.abs(amount) > math.abs(punch) then
+		punch = amount
+	end
 end
 
 local function setBars(visible: boolean)
@@ -105,6 +108,85 @@ local function onErased()
 			3
 		)
 	end)
+end
+
+-- Кратковременная "плёнка" цвета поверх мира: насыщенность, оттенок и контраст с плавным возвратом.
+local function tint(color: Color3, saturation: number, duration: number, fade: number?)
+	grade.TintColor = color
+	grade.Saturation = saturation
+	task.delay(duration, function()
+		tween(grade, fade or 0.6, { TintColor = Color3.new(1, 1, 1), Saturation = 0, Contrast = 0 })
+	end)
+end
+
+-- Перемотка времени: зелёная вспышка и "рывок" камеры.
+local function onRewind()
+	flashScreen(Color3.fromRGB(110, 255, 150), 0.5, 0.6)
+	ScreenFxController.fovPunch(-14)
+	tint(Color3.fromRGB(190, 255, 205), -0.3, 0.3)
+end
+
+-- Тебя остановили во времени: мир серо-зелёный, пока длится пауза.
+local function onTimePaused(duration: number)
+	grade.Contrast = 0.2
+	tint(Color3.fromRGB(170, 255, 190), -0.85, duration, 0.4)
+	showBanner("ВРЕМЯ ОСТАНОВЛЕНО", "⏳", Color3.fromRGB(110, 255, 150), duration - 0.5)
+end
+
+-- Скипетр Локи: синяя пелена контроля разума.
+local function onMindControlled(duration: number)
+	flashScreen(Color3.fromRGB(70, 170, 255), 0.55, 0.8)
+	tint(Color3.fromRGB(160, 200, 255), -0.4, duration)
+	showBanner(
+		"ПОД КОНТРОЛЕМ",
+		"Скипетр Локи подчинил твою волю",
+		Color3.fromRGB(110, 190, 255),
+		duration - 0.4
+	)
+end
+
+-- Невидимость Локи (видит только сам Локи).
+local function onInvisible(duration: number)
+	flashScreen(Color3.fromRGB(60, 200, 90), 0.6, 0.5)
+	tint(Color3.fromRGB(200, 255, 210), -0.25, duration)
+	showBanner(
+		"НЕВИДИМОСТЬ",
+		"Следующий удар кинжалом: «Сюрприз!» ×3",
+		Color3.fromRGB(110, 255, 150),
+		1.5
+	)
+end
+
+-- «Славная цель»: кинематографичный момент для всех рядом.
+local function onGloriousPurpose()
+	setBars(true)
+	tween(zoom, 1.2, { Value = -12 }, Enum.EasingStyle.Sine)
+	tint(Color3.fromRGB(200, 255, 215), -0.3, 3.2, 1.2)
+	task.delay(0.6, function()
+		flashScreen(Color3.fromRGB(110, 255, 150), 0.2, 1.4)
+		ScreenFxController.fovPunch(18)
+		showBanner(
+			"СЛАВНАЯ ЦЕЛЬ",
+			"«Ради вас. Ради всех нас.»",
+			Color3.fromRGB(110, 255, 150),
+			3
+		)
+	end)
+	task.delay(3.2, function()
+		zoom.Value = 0
+		setBars(false)
+	end)
+end
+
+local function onHeroUnlocked(_heroId: string)
+	flashScreen(Color3.fromRGB(110, 255, 150), 0.3, 1.5)
+	ScreenFxController.fovPunch(14)
+	showBanner(
+		"ЛОКИ, БОГ ВРЕМЕНИ",
+		"Новый герой открыт! Меню героев [H]",
+		Color3.fromRGB(110, 255, 150),
+		4
+	)
 end
 
 local function onStoneCollected(stoneId: string, count: number)
@@ -209,6 +291,18 @@ function ScreenFxController:Start()
 			onSnap(center, tonumber(extra) or 0)
 		elseif kind == "Erased" then
 			onErased()
+		elseif kind == "Rewind" then
+			onRewind()
+		elseif kind == "TimePaused" then
+			onTimePaused(tonumber(extra) or 3)
+		elseif kind == "MindControlled" then
+			onMindControlled(tonumber(extra) or 2)
+		elseif kind == "Invisible" then
+			onInvisible(tonumber(extra) or 4)
+		elseif kind == "GloriousPurpose" then
+			onGloriousPurpose()
+		elseif kind == "HeroUnlocked" then
+			onHeroUnlocked(tostring(extra))
 		end
 	end)
 	Remotes.event("StoneCollected").OnClientEvent:Connect(onStoneCollected)

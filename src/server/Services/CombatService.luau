@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Abilities = require(ReplicatedStorage.Shared.Abilities)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Heroes = require(ReplicatedStorage.Shared.Heroes)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
 local AbilityHandlers = require(script.Parent.Parent.Combat.AbilityHandlers)
@@ -25,7 +26,11 @@ local poseCounter = 0
 -- Какую позу руки показать всем игрокам (анимация делается кодом в PoseController).
 local POSES: { [string]: string } = {
 	Punch = "Punch",
+	DaggerSlash = "Punch",
+	TimeThread = "Punch",
 	Snap = "Raise",
+	GloriousPurpose = "Raise",
+	Casket = "Raise",
 }
 
 local function setPose(character: Model, abilityId: string)
@@ -79,7 +84,8 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 	end
 
 	local data = DataService:Get(player)
-	if not data or not Abilities.isUnlocked(ability, data.Stones) then
+	-- Способность должна принадлежать текущему герою и быть открыта.
+	if not data or ability.hero ~= data.Hero or not Abilities.isUnlocked(ability, data.Stones) then
 		return
 	end
 
@@ -99,6 +105,8 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 	setPose(character, abilityId)
 
 	local skin = Shop.SkinById[data.EquippedSkin] or Shop.SkinById[Shop.DefaultSkin]
+	-- Базовые атаки Таноса окрашены скином Перчатки, у Локи — цветом героя.
+	local accent = if data.Hero == "Thanos" then Shop.skinColor(skin) else Heroes.ById[data.Hero].color
 	local handler = AbilityHandlers[abilityId]
 	local ok, err = pcall(handler :: any, {
 		player = player,
@@ -108,7 +116,8 @@ local function onUseAbility(player: Player, abilityId: unknown, rawTarget: unkno
 		target = clampTarget(root.Position, target, ability.range, root.CFrame.LookVector),
 		abilityId = abilityId,
 		damageMult = Shop.damageMult(data.Upgrades),
-		accent = Shop.skinColor(skin),
+		accent = accent,
+		stones = data.Stones,
 	})
 	if not ok then
 		warn(`[CombatService] {abilityId} failed: {err}`)

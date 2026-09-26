@@ -50,6 +50,16 @@ local expected = {
 	["ReplicatedStorage.Shared.Shop"] = "ModuleScript",
 	["ReplicatedStorage.Shared.Sounds"] = "ModuleScript",
 	["ReplicatedStorage.Shared.GauntletModel"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Heroes"] = "ModuleScript",
+	["ReplicatedStorage.Shared.HeroModel"] = "ModuleScript",
+	["ServerScriptService.Server.Services.HeroService"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.Thanos"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.Loki"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Heroes.GodLoki"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Kit"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Timeline"] = "ModuleScript",
+	["ServerScriptService.Server.Combat.Projectile"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.HeroController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Ui"] = "ModuleScript",
@@ -93,18 +103,34 @@ local function loadModule(path)
 end
 local Items = loadModule("src/shared/Items.luau")
 local Abilities = loadModule("src/shared/Abilities.luau")
-local handlersSource = fs.readFile("src/server/Combat/AbilityHandlers.luau")
+-- Исходники всех героев: обработчики способностей описаны как function Handlers.<id>(.
+local handlersSource = ""
+for _, file in fs.readDir("src/server/Combat/Heroes") do
+	handlersSource ..= fs.readFile("src/server/Combat/Heroes/" .. file)
+end
+local Heroes = loadModule("src/shared/Heroes.luau")
 
 check(#Items.Stones == 6, "6 stones")
 local keys = {}
 for _, a in Abilities.List do
+	check(Heroes.ById[a.hero] ~= nil, `{a.id} belongs to existing hero {a.hero}`)
 	check(string.find(handlersSource, "function Handlers." .. a.id .. "%(") ~= nil, `handler for {a.id}`)
-	check(not keys[a.input], `unique input for {a.id} ({a.keyLabel})`)
-	keys[a.input] = true
+	-- Клавиши уникальны в пределах героя (у разных героев могут совпадать).
+	local key = a.hero .. ":" .. tostring(a.input)
+	check(not keys[key], `unique input for {a.id} ({a.hero} {a.keyLabel})`)
+	keys[key] = true
 	for _, s in a.requires do
 		check(Items.StoneById[s] ~= nil, `{a.id} requires valid stone {s}`)
 	end
+	check(#a.requires == 0 or a.hero == "Thanos", `only Thanos abilities need stones ({a.id})`)
 end
+for _, hero in Heroes.List do
+	local count = #Abilities.forHero(hero.id)
+	check(count >= 6, `{hero.id} has {count} abilities`)
+end
+check(Heroes.isUnlocked(Heroes.ById.Loki, 0), "Loki unlocked from start")
+check(not Heroes.isUnlocked(Heroes.ById.GodLoki, 24), "God Loki locked at 24 kills")
+check(Heroes.isUnlocked(Heroes.ById.GodLoki, 25), "God Loki unlocked at 25 kills")
 for _, s in Items.Stones do
 	local a = Abilities.ById[s.ability]
 	check(a ~= nil and a.requires[1] == s.id and #a.requires == 1, `{s.id} unlocks {s.ability}`)
@@ -164,6 +190,15 @@ for _, stone in Items.Stones do
 	check(names[stone.id] ~= nil and names[stone.id].role == "gem", `gem for {stone.id}`)
 	check(names[stone.id .. "Socket"] ~= nil, `socket for {stone.id}`)
 end
+
+-- 5. Внешний вид Локи
+print("[heroes]")
+local HeroModel = loadModule("src/shared/HeroModel.luau")
+for _, id in { "Loki", "GodLoki" } do
+	local outfit = HeroModel.outfit(id)
+	check(outfit ~= nil and #outfit.head >= 10 and #outfit.torso >= 5, `{id} has helmet and cape`)
+end
+check(HeroModel.outfit("Thanos") == nil, "Thanos uses the gauntlet, not an outfit")
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
 process.exit(if failures == 0 then 0 else 1)
