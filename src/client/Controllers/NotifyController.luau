@@ -39,6 +39,22 @@ local function ensureContainer(): Frame
 	return container :: any
 end
 
+-- Сдвиг уведомлений вниз, когда вверху по центру открыта панель (здоровье босса, табло арены).
+local offsets: { [string]: number } = {}
+
+function NotifyController.setOffset(source: string, pixels: number)
+	if pixels > 0 then
+		offsets[source] = pixels
+	else
+		offsets[source] = nil
+	end
+	local top = 0
+	for _, value in offsets do
+		top = math.max(top, value)
+	end
+	ensureContainer().Position = UDim2.new(0.5, 0, 0, 12 + top)
+end
+
 function NotifyController.show(text: string, color: Color3?)
 	local accent = color or Ui.Colors.Gold
 	local toast = Ui.create("Frame", {

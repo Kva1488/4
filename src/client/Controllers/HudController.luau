@@ -1,5 +1,6 @@
 --!strict
--- HUD слева сверху: монеты (с анимацией счёта и всплывающими "+N"), камни и полоска здоровья.
+-- HUD слева сверху: монеты (с анимацией счёта и всплывающими "+N"), камни, здоровье,
+-- уровень и полоска опыта.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,6 +8,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Items = require(ReplicatedStorage.Shared.Items)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local PlayerState = require(script.Parent.Parent.PlayerState)
 local Ui = require(script.Parent.Parent.Ui)
@@ -20,6 +22,9 @@ local stonesLabel: TextLabel
 local coinsRow: Frame
 local healthFill: Frame
 local healthText: TextLabel
+local levelLabel: TextLabel
+local xpFill: Frame
+local xpText: TextLabel
 
 local shownCoins = 0
 local targetCoins = 0
@@ -62,6 +67,13 @@ local function onData()
 	end
 	lastCoins = data.Coins
 	stonesLabel.Text = `💎 {Items.countStones(data.Stones)}/{#Items.Stones}`
+	local maxed = data.Level >= Progression.MaxLevel
+	local need = Progression.xpToNext(data.Level)
+	levelLabel.Text = `⭐ {data.Level}`
+	xpText.Text = if maxed then "МАКС." else `{data.Xp} / {need}`
+	TweenService:Create(xpFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+		Size = UDim2.fromScale(if maxed then 1 else math.clamp(data.Xp / need, 0, 1), 1),
+	}):Play()
 end
 
 local function row(order: number, parent: Instance): Frame
@@ -104,7 +116,7 @@ function HudController:Start()
 	})
 	local column = Ui.create("Frame", {
 		Position = UDim2.fromOffset(16, 16),
-		Size = UDim2.fromOffset(220, 140),
+		Size = UDim2.fromOffset(220, 180),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -144,6 +156,42 @@ function HudController:Start()
 		Text = "",
 		ZIndex = 2,
 		Parent = healthRow,
+	})
+
+	-- Уровень: значок и полоска опыта.
+	local levelRow = row(4, column)
+	levelRow.Size = UDim2.fromOffset(170, 26)
+	levelLabel = Ui.label({
+		Size = UDim2.fromOffset(44, 18),
+		Position = UDim2.fromOffset(6, 4),
+		Text = "⭐ 1",
+		TextColor3 = Color3.fromRGB(255, 215, 90),
+		Font = Enum.Font.GothamBlack,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = levelRow,
+	})
+	local xpTrack = Ui.create("Frame", {
+		Position = UDim2.fromOffset(52, 7),
+		Size = UDim2.new(1, -60, 0, 12),
+		BackgroundColor3 = Ui.Colors.PanelLight,
+		Parent = levelRow,
+	}, { Ui.corner(6) })
+	xpFill = Ui.create("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Color3.fromRGB(120, 170, 255),
+		Parent = xpTrack,
+	}, {
+		Ui.corner(6),
+		Ui.create("UIGradient", {
+			Color = ColorSequence.new(Color3.fromRGB(110, 150, 255), Color3.fromRGB(200, 120, 255)),
+		}),
+	})
+	xpText = Ui.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		ZIndex = 2,
+		Font = Enum.Font.GothamBold,
+		Parent = xpTrack,
 	})
 
 	PlayerState.Changed:Connect(onData)

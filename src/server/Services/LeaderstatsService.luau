@@ -1,5 +1,5 @@
 --!strict
--- Показывает данные игрока (Coins) в таблице лидеров и держит их в синхроне с DataService.
+-- Показывает данные игрока (монеты и уровень) в таблице лидеров и держит их в синхроне с DataService.
 
 local Players = game:GetService("Players")
 
@@ -7,7 +7,7 @@ local DataService = require(script.Parent.DataService)
 
 local LeaderstatsService = {}
 
-local function getCoinsValue(player: Player): IntValue
+local function getValue(player: Player, name: string): IntValue
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if not leaderstats then
 		local folder = Instance.new("Folder")
@@ -15,20 +15,21 @@ local function getCoinsValue(player: Player): IntValue
 		folder.Parent = player
 		leaderstats = folder
 	end
-	local coins = (leaderstats :: Instance):FindFirstChild("Coins")
-	if not coins then
+	local stat = (leaderstats :: Instance):FindFirstChild(name)
+	if not stat then
 		local value = Instance.new("IntValue")
-		value.Name = "Coins"
+		value.Name = name
 		value.Parent = leaderstats
-		coins = value
+		stat = value
 	end
-	return coins :: IntValue
+	return stat :: IntValue
 end
 
 function LeaderstatsService:Start()
 	DataService:OnChanged(function(player, data)
 		if player.Parent == Players then
-			getCoinsValue(player).Value = data.Coins
+			getValue(player, "Level").Value = data.Level
+			getValue(player, "Coins").Value = data.Coins
 		end
 	end)
 end

@@ -12,6 +12,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Heroes = require(ReplicatedStorage.Shared.Heroes)
+local Progression = require(ReplicatedStorage.Shared.Progression)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
 type PlayerData = Config.PlayerData
@@ -87,11 +88,36 @@ local function reconcile(raw: any): PlayerData
 	if type(raw.EquippedSkin) == "string" and result.Skins[raw.EquippedSkin] then
 		result.EquippedSkin = raw.EquippedSkin
 	end
-	for _, stat in { "LokiKills", "UltronKills", "ThorKills" } do
+	for _, stat in
+		{
+			"LokiKills",
+			"UltronKills",
+			"ThorKills",
+			"Xp",
+			"Kills",
+			"BossKills",
+			"ArenaWins",
+			"DailyStreak",
+			"BestStreak",
+		}
+	do
 		local value = raw[stat]
-		if type(value) == "number" and value == value then
+		if type(value) == "number" and value == value and value < math.huge then
 			(result :: any)[stat] = math.max(0, math.floor(value))
 		end
+	end
+	if type(raw.Level) == "number" and raw.Level == raw.Level then
+		result.Level = math.clamp(math.floor(raw.Level), 1, Progression.MaxLevel)
+	end
+	if type(raw.LastDaily) == "number" and raw.LastDaily == raw.LastDaily and raw.LastDaily < math.huge then
+		result.LastDaily = math.floor(raw.LastDaily)
+	end
+	result.DailyStreak = math.min(result.DailyStreak, #Progression.Daily)
+	local title = if type(raw.EquippedTitle) == "string"
+		then Progression.TitleById[raw.EquippedTitle]
+		else nil
+	if title and Progression.hasTitle(title, result) then
+		result.EquippedTitle = title.id
 	end
 	local hero = if type(raw.Hero) == "string" then Heroes.ById[raw.Hero] else nil
 	if hero and Heroes.isUnlocked(hero, result) then

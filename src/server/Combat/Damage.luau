@@ -1,7 +1,10 @@
 --!strict
 -- Поиск целей, урон, лечение, отбрасывание и награды за убийства.
--- Цели: персонажи других игроков (PvP) и модели с тегом "Enemy" (манекены).
+-- Цели: персонажи других игроков (PvP) и модели с тегом "Enemy" (манекены, Дормамму, прислужники).
 -- Каждый удар рассылается клиентам (цифры урона, хитмаркер), а убийство попадает в ленту убийств.
+-- Зоны: атрибут Zone у модели ("Arena" — летающая арена). Бьют друг друга только цели одной зоны,
+-- поэтому, например, Щелчок внизу не задевает игроков на арене.
+-- HitRadius у модели — радиус большой цели (босс): она ловит удары краем, а не только центром.
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
@@ -46,6 +49,30 @@ local PROGRESS_HERO: { [string]: { [string]: boolean } } = {
 	ThorKills = { Thor = true, ThorStormbreaker = true },
 }
 
+-- Подписчики на урон и убийства (прокачка, босс, режимы арены).
+type DamageListener = (attacker: Player, humanoid: Humanoid, dealt: number) -> ()
+type KillListener = (attacker: Player, humanoid: Humanoid) -> ()
+local damageListeners: { DamageListener } = {}
+local killListeners: { KillListener } = {}
+
+function Damage.onDamaged(listener: DamageListener)
+	table.insert(damageListeners, listener)
+end
+
+function Damage.onKilled(listener: KillListener)
+	table.insert(killListeners, listener)
+end
+
+function Damage.zoneOf(model: Instance?): string
+	local zone = model and model:GetAttribute("Zone")
+	return if type(zone) == "string" then zone else "World"
+end
+
+function Damage.hitRadius(model: Instance): number
+	local radius = model:GetAttribute("HitRadius")
+	return if type(radius) == "number" then radius else 0
+end
+
 local function asTarget(model: Model?): Target?
 	if not model then
 		return nil
@@ -61,9 +88,10 @@ end
 -- Все живые цели, кроме exclude (обычно персонаж атакующего).
 function Damage.getTargets(exclude: Model?): { Target }
 	local result = {}
+	local zone = if exclude then Damage.zoneOf(exclude) else nil
 	for _, player in Players:GetPlayers() do
 		local character = player.Character
-		if character and character ~= exclude then
+		if character and character ~= exclude and (zone == nil or Damage.zoneOf(character) == zone) then
 			local target = asTarget(character)
 			if target then
 				table.insert(result, target)
@@ -71,7 +99,12 @@ function Damage.getTargets(exclude: Model?): { Target }
 		end
 	end
 	for _, model in CollectionService:GetTagged("Enemy") do
-		if model:IsA("Model") and model ~= exclude and model:IsDescendantOf(workspace) then
+		if
+			model:IsA("Model")
+			and model ~= exclude
+			and model:IsDescendantOf(workspace)
+			and (zone == nil or Damage.zoneOf(model) == zone)
+		then
 			local target = asTarget(model)
 			if target then
 				table.insert(result, target)
@@ -84,7 +117,7 @@ end
 function Damage.inRadius(position: Vector3, radius: number, exclude: Model?): { Target }
 	local result = {}
 	for _, target in Damage.getTargets(exclude) do
-		if (target.root.Position - position).Magnitude <= radius then
+		if (target.root.Position - position).Magnitude <= radius + Damage.hitRadius(target.model) then
 			table.insert(result, target)
 		end
 	end
@@ -117,7 +150,11 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 	end
 	victim:SetAttribute("Rewarded", true)
 	local victimPlayer = Players:GetPlayerFromCharacter(victim.Parent)
-	local amount = if victimPlayer then Config.Rewards.PlayerKill else Config.Rewards.DummyKill
+	local custom = victim.Parent and victim.Parent:GetAttribute("KillReward")
+	local amount = if type(custom) == "number"
+		then custom
+		elseif victimPlayer then Config.Rewards.PlayerKill
+		else Config.Rewards.DummyKill
 	-- Прогресс усиленных героев: убийства за базового героя.
 	local victimHero = if victimPlayer
 		then victimPlayer.Character and victimPlayer.Character:GetAttribute("Hero")
@@ -125,6 +162,7 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 	local unlocked: Heroes.Hero? = nil
 	DataService:Update(attacker, function(data)
 		data.Coins += amount
+		data.Kills += 1
 		local stats = data :: any
 		-- Что было открыто до этого убийства.
 		local before: { [string]: boolean } = {}
@@ -175,6 +213,9 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 		source or "",
 		color or Color3.new(1, 1, 1)
 	)
+	for _, listener in killListeners do
+		task.spawn(listener, attacker, victim)
+	end
 end
 
 -- Наносит урон. ForceField (защита после спавна) блокирует урон, кроме ignoreShield.
@@ -190,6 +231,15 @@ function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, optio
 		return
 	end
 	local opts: DamageOptions = options or {}
+	-- Игроки на арене и в остальном мире не задевают друг друга.
+	if Damage.zoneOf(attacker.Character) ~= Damage.zoneOf(humanoid.Parent) then
+		return
+	end
+	-- Большие цели (босс) получают не больше MaxHitDamage за удар: Щелчок не убивает их мгновенно.
+	local cap = humanoid.Parent and humanoid.Parent:GetAttribute("MaxHitDamage")
+	if type(cap) == "number" then
+		amount = math.min(amount, cap)
+	end
 	local before = humanoid.Health
 	-- Парирование: удар пришёл в первые 0.3 с блока — урон отменён, атакующий оглушён.
 	local blockStart = humanoid:GetAttribute("BlockStart")
@@ -234,6 +284,9 @@ function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, optio
 	end
 	humanoid:SetAttribute("LastAttacker", attacker.UserId)
 	Damage.chargeUltimate(attacker, dealt / ULT_DAMAGE_TO_CHARGE)
+	for _, listener in damageListeners do
+		task.spawn(listener, attacker, humanoid, dealt)
+	end
 
 	local killed = humanoid.Health <= 0
 	local model = humanoid.Parent
@@ -250,6 +303,54 @@ function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, optio
 	end
 	if killed then
 		onKill(attacker, humanoid, opts.source, opts.color)
+	end
+end
+
+-- Урон от NPC (Дормамму и его прислужники): блок и щиты работают, парирование гасит удар.
+-- Убийство попадает в ленту от имени attackerName.
+export type NpcDamageOptions = {
+	attackerName: string,
+	source: string,
+	color: Color3?,
+}
+
+function Damage.fromNpc(humanoid: Humanoid, amount: number, opts: NpcDamageOptions)
+	if humanoid.Health <= 0 then
+		return
+	end
+	local blockStart = humanoid:GetAttribute("BlockStart")
+	if
+		humanoid:GetAttribute("Blocking")
+		and typeof(blockStart) == "number"
+		and os.clock() - blockStart <= PARRY_WINDOW
+	then
+		humanoid:SetAttribute("BlockStart", 0)
+		local defender = Players:GetPlayerFromCharacter(humanoid.Parent)
+		if defender then
+			notifyEvent:FireClient(defender, "🛡️ ПАРИРОВАНИЕ!", Color3.fromRGB(255, 240, 150))
+		end
+		return
+	end
+	amount *= Status.damageMultiplier(humanoid)
+	if amount <= 0 then
+		return
+	end
+	local before = humanoid.Health
+	humanoid:TakeDamage(amount)
+	local dealt = before - humanoid.Health
+	if dealt <= 0 then
+		return
+	end
+	local killed = humanoid.Health <= 0
+	local model = humanoid.Parent
+	local root = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local tint = opts.color or Color3.fromRGB(255, 120, 40)
+	if root then
+		hitEvent:FireAllClients(root.Position, dealt, tint, 0, model, killed)
+	end
+	if killed and not humanoid:GetAttribute("Rewarded") then
+		humanoid:SetAttribute("Rewarded", true)
+		killfeedEvent:FireAllClients(opts.attackerName, displayName(humanoid), opts.source, tint)
 	end
 end
 

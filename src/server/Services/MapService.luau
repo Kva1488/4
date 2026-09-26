@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Items = require(ReplicatedStorage.Shared.Items)
+local Places = require(ReplicatedStorage.Shared.Places)
 
 local StoneService = require(script.Parent.StoneService)
 
@@ -69,6 +70,17 @@ local function isFree(position: Vector3, clearance: number): boolean
 	if position.Magnitude < ARENA_RADIUS + 20 + clearance then
 		return false
 	end
+	-- Логово Дормамму и портал на арену строятся отдельно.
+	local flat = position * Vector3.new(1, 0, 1)
+	if (flat - Places.BossCenter).Magnitude < Places.BossRadius + 20 + clearance then
+		return false
+	end
+	if (flat - Places.ArenaPortal).Magnitude < 12 + clearance then
+		return false
+	end
+	if distanceToSegment(position, Vector3.zero, Places.BossCenter) < 6 + clearance then
+		return false -- пурпурная дорожка к разлому
+	end
 	for _, location in StoneService.Locations do
 		if (position - location).Magnitude < 38 + clearance then
 			return false
@@ -89,6 +101,14 @@ local function freeSpot(minR: number, maxR: number, clearance: number): Vector3?
 		end
 	end
 	return nil
+end
+
+-- Направление на разлом Дормамму: там в кольце гор проход, чтобы горы не засыпали логово.
+local BOSS_ANGLE = math.atan2(Places.BossCenter.Z, Places.BossCenter.X)
+
+local function nearBossAngle(angle: number, width: number): boolean
+	local delta = (angle - BOSS_ANGLE + math.pi) % (math.pi * 2) - math.pi
+	return math.abs(delta) < width
 end
 
 local function buildTerrain()
@@ -118,8 +138,10 @@ local function buildTerrain()
 		local angle = (i / mountains) * math.pi * 2 + rng:NextNumber(-0.08, 0.08)
 		local distance = rng:NextNumber(330, 370)
 		local radius = rng:NextNumber(55, 90)
-		terrain:FillBall(polar(angle, distance, -radius * 0.25), radius, Enum.Material.Rock)
-		terrain:FillBall(polar(angle, distance + 20, radius * 0.35), radius * 0.6, Enum.Material.Basalt)
+		if not nearBossAngle(angle, math.rad(26)) then
+			terrain:FillBall(polar(angle, distance, -radius * 0.25), radius, Enum.Material.Rock)
+			terrain:FillBall(polar(angle, distance + 20, radius * 0.35), radius * 0.6, Enum.Material.Basalt)
+		end
 	end
 
 	-- Скальные шпили перед горами.
@@ -128,6 +150,9 @@ local function buildTerrain()
 		local height = rng:NextNumber(50, 120)
 		local base = polar(angle, rng:NextNumber(262, 295))
 		local tilt = CFrame.Angles(rng:NextNumber(-0.15, 0.15), 0, rng:NextNumber(-0.15, 0.15))
+		if nearBossAngle(angle, math.rad(25)) then
+			continue
+		end
 		terrain:FillCylinder(
 			CFrame.new(base + Vector3.new(0, height / 2 - 4, 0)) * tilt,
 			height,

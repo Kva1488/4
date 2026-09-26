@@ -60,7 +60,11 @@ local function flashScreen(color: Color3, from: number, duration: number)
 	tween(flash, duration, { BackgroundTransparency = 1 })
 end
 
+local bannerToken = 0
+
 local function showBanner(title: string, subtitle: string, color: Color3, duration: number)
+	bannerToken += 1
+	local token = bannerToken
 	bannerTitle.Text = title
 	bannerTitle.TextColor3 = color
 	bannerSubtitle.Text = subtitle
@@ -71,9 +75,32 @@ local function showBanner(title: string, subtitle: string, color: Color3, durati
 	bannerSubtitle.TextTransparency = 0
 	tween(scale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 	task.delay(duration, function()
-		tween(bannerTitle, 0.5, { TextTransparency = 1 })
-		tween(bannerSubtitle, 0.5, { TextTransparency = 1 })
+		-- Новый баннер мог прийти раньше — тогда старый таймер его не гасит.
+		if token == bannerToken then
+			tween(bannerTitle, 0.5, { TextTransparency = 1 })
+			tween(bannerSubtitle, 0.5, { TextTransparency = 1 })
+		end
 	end)
+end
+
+-- Общий баннер от сервера (босс, арена): extra = { title, subtitle, color }.
+local function onBanner(extra: any)
+	if type(extra) ~= "table" then
+		return
+	end
+	local color = if typeof(extra.color) == "Color3" then extra.color else Ui.Colors.Gold
+	flashScreen(color, 0.75, 0.8)
+	ScreenFxController.fovPunch(6)
+	showBanner(tostring(extra.title or ""), tostring(extra.subtitle or ""), color, 4)
+end
+
+-- Новый уровень: золотая вспышка и баннер.
+local function onLevelUp(level: number)
+	local gold = Color3.fromRGB(255, 205, 70)
+	flashScreen(gold, 0.55, 1)
+	ScreenFxController.fovPunch(8)
+	Ui.playSound("Purchase", 0.7, 1.4)
+	showBanner(`⭐ УРОВЕНЬ {level}`, "Монеты за уровень зачислены!", gold, 3)
 end
 
 local function onSnapCharge()
@@ -384,6 +411,10 @@ function ScreenFxController:Start()
 			onThunder(tostring(extra))
 		elseif kind == "Hacked" then
 			onHacked(tonumber(extra) or 3)
+		elseif kind == "Banner" then
+			onBanner(extra)
+		elseif kind == "LevelUp" then
+			onLevelUp(tonumber(extra) or 1)
 		end
 	end)
 	Remotes.event("StoneCollected").OnClientEvent:Connect(onStoneCollected)

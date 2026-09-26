@@ -122,7 +122,10 @@ function Kit.inCone(ctx: Context, range: number, halfAngle: number): { Damage.Ta
 	local result = {}
 	for _, target in Damage.inRadius(ctx.root.Position, range, ctx.character) do
 		local offset = (target.root.Position - ctx.root.Position) * Vector3.new(1, 0, 1)
-		if offset.Magnitude < 3 or forward:Dot(offset.Unit) >= math.cos(math.rad(halfAngle)) then
+		if
+			offset.Magnitude < 3 + Damage.hitRadius(target.model)
+			or forward:Dot(offset.Unit) >= math.cos(math.rad(halfAngle))
+		then
 			table.insert(result, target)
 		end
 	end
@@ -154,7 +157,9 @@ function Kit.alongLine(
 	for _, target in Damage.getTargets(ctx.character) do
 		local offset = target.root.Position - origin
 		local along = offset:Dot(direction)
-		if along > 0 and along <= length and (offset - direction * along).Magnitude <= width then
+		local bulk = Damage.hitRadius(target.model)
+		local reach = width + bulk
+		if along > -bulk and along <= length + bulk and (offset - direction * along).Magnitude <= reach then
 			table.insert(result, target)
 		end
 	end

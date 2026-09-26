@@ -84,6 +84,16 @@ local expected = {
 	["Lighting.Atmosphere"] = "Atmosphere",
 	["Lighting.Bloom"] = "BloomEffect",
 	["Workspace.SpawnLocation"] = "SpawnLocation",
+	["ServerScriptService.Server.Services.ProgressionService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.BossService"] = "ModuleScript",
+	["ServerScriptService.Server.Services.ArenaService"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Progression"] = "ModuleScript",
+	["ReplicatedStorage.Shared.Places"] = "ModuleScript",
+	["ReplicatedStorage.Shared.ArenaModes"] = "ModuleScript",
+	["ReplicatedStorage.Shared.DormammuModel"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.BossController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.ArenaController"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.RewardsController"] = "ModuleScript",
 }
 for path, className in expected do
 	local node = find(path)
@@ -105,6 +115,7 @@ local env = {
 	typeof = typeof,
 	type = type,
 	print = print,
+	os = os,
 }
 local function loadModule(path)
 	return luau.load(fs.readFile(path), { debugName = path, environment = env })()
@@ -308,6 +319,87 @@ local both = HeroModel.outfit("ThorBoth")
 check(
 	hasPart(both, "rightHand", "AxeBlade") and hasPart(both, "leftHand", "MjolnirHead"),
 	"Endgame Thor holds both weapons"
+)
+
+-- 7. Прокачка, награды и титулы
+print("[progression]")
+local Progression = loadModule("src/shared/Progression.luau")
+local Config = loadModule("src/shared/Config.luau")
+local increasing = true
+for level = 1, Progression.MaxLevel - 1 do
+	if Progression.xpToNext(level + 1) <= Progression.xpToNext(level) or Progression.xpToNext(level) <= 0 then
+		increasing = false
+	end
+end
+check(increasing, "XP per level grows with level")
+check(#Progression.Daily == 7, "7 daily rewards")
+local dailyGrows = true
+for day = 2, #Progression.Daily do
+	if Progression.Daily[day].coins <= Progression.Daily[day - 1].coins then
+		dailyGrows = false
+	end
+end
+check(dailyGrows, "daily coins grow every day")
+local today = 20000
+check(Progression.nextStreak(today - 1, 3, today) == 4, "streak continues after yesterday")
+check(Progression.nextStreak(today - 1, 7, today) == 1, "streak wraps after day 7")
+check(Progression.nextStreak(today - 3, 5, today) == 1, "missed day resets streak")
+check(Progression.nextStreak(-1, 0, today) == 1, "first claim is day 1")
+local titleIds = {}
+for _, title in Progression.Titles do
+	check(not titleIds[title.id], `unique title {title.id}`)
+	titleIds[title.id] = true
+	check(type(Config.DefaultData[title.stat]) == "number", `title {title.id} uses saved stat {title.stat}`)
+	check(not Progression.hasTitle(title, Config.DefaultData), `title {title.id} is locked for new players`)
+end
+for _, field in { "Level", "Xp", "Kills", "BossKills", "ArenaWins", "DailyStreak", "BestStreak", "LastDaily" } do
+	check(type(Config.DefaultData[field]) == "number", `DefaultData.{field}`)
+end
+check(Config.DefaultData.EquippedTitle == "", "no title equipped by default")
+
+-- 8. Дормамму и особые места карты
+print("[boss]")
+local DormammuModel = loadModule("src/shared/DormammuModel.luau")
+local head = DormammuModel.head()
+local hand = DormammuModel.hand()
+local counts = {}
+local rolesOk = true
+for _, spec in head do
+	counts[spec.name] = (counts[spec.name] or 0) + 1
+	if not DormammuModel.Roles[spec.role] then
+		rolesOk = false
+	end
+end
+for _, spec in hand do
+	if not DormammuModel.Roles[spec.role] then
+		rolesOk = false
+	end
+end
+check(rolesOk, "Dormammu parts use known roles")
+check(#head >= 200, `Dormammu head is detailed ({#head} parts)`)
+check(counts.Eye == 2 and counts.EyeCore == 2, "Dormammu has two burning eyes")
+check(
+	(counts.Flame or 0) >= 20 and (counts.Crack or 0) >= 60,
+	"Dormammu has a flame crown and glowing cracks"
+)
+check(#hand >= 30, `Dark Dimension hand is detailed ({#hand} parts)`)
+local Places = loadModule("src/shared/Places.luau")
+local stoneSource = fs.readFile("src/server/Services/StoneService.luau")
+local clear = true
+local stoneSpots = 0
+for x, z in string.gmatch(stoneSource, "Vector3%.new%((%-?%d+), 0, (%-?%d+)%)") do
+	stoneSpots += 1
+	local d = (roblox.Vector3.new(tonumber(x), 0, tonumber(z)) - Places.BossCenter).Magnitude
+	if d < Places.BossRadius + 40 then
+		clear = false
+	end
+end
+check(clear and stoneSpots >= 6, `Dormammu's rift does not overlap {stoneSpots} stone locations`)
+check(Places.ArenaCenter.Y > 250, "mode arena floats high above the map")
+local ArenaModes = loadModule("src/shared/ArenaModes.luau")
+check(
+	ArenaModes.ById.KingOfHill and ArenaModes.ById.Gauntlet and ArenaModes.ById.Deathmatch,
+	"arena has King of the Hill, Gauntlet capture and Deathmatch"
 )
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)

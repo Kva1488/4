@@ -302,8 +302,14 @@ end
 function Fx.cubify(model: Model, color: Color3, duration: number)
 	local palette =
 		{ color, Color3.fromRGB(255, 120, 150), Color3.fromRGB(255, 200, 120), Color3.fromRGB(180, 40, 60) }
+	-- У огромных моделей (Дормамму) берём только часть деталей, иначе будут тысячи кубов.
+	local budget = 60
 	for _, part in model:GetDescendants() do
+		if budget <= 0 then
+			break
+		end
 		if part:IsA("BasePart") and part.Transparency < 1 and part.Size.Magnitude > 0.5 then
+			budget -= 3
 			for _ = 1, 3 do
 				local cube = basePart(Enum.PartType.Block, palette[math.random(1, #palette)])
 				cube.Material = Enum.Material.SmoothPlastic

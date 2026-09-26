@@ -6,7 +6,7 @@
 
 | Папка | Куда попадает в Studio | Что там |
 |---|---|---|
-| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Sounds`, `Config`, `Remotes` |
+| `src/shared/` | `ReplicatedStorage.Shared` | `Items` (камни), `Abilities` (способности), `Shop` (прокачка, скины), `GauntletModel` (геометрия перчатки), `Progression` (уровни, ежедневные награды, титулы), `ArenaModes`, `Places` (логово босса, арена), `DormammuModel` (босс), `Sounds`, `Config`, `Remotes` |
 | `src/server/Services/` | `ServerScriptService.Server.Services` | Сервисы, их автоматически загружает `init.server.luau` |
 | `src/server/Combat/` | `ServerScriptService.Server.Combat` | `Heroes/<Герой>` (способности), `AbilityHandlers` (собирает их), `Kit` (общие хелперы), `Damage`, `Status`, `Fx`, `Projectile`, `Timeline`. Загрузчик их не трогает |
 | `src/client/Controllers/` | `...StarterPlayerScripts.Client.Controllers` | Контроллеры, их автоматически загружает `init.client.luau` |
@@ -19,6 +19,12 @@
 3. Панель, блокировка и инвентарь подхватят её автоматически. `tools/verify.luau` проверит, что обработчик есть, а клавиша ни с чем не пересекается.
 
 Карта дерева лежит в `default.project.json`, там же SpawnLocation и Lighting (атмосфера, bloom, цветокоррекция). Рельеф и декор карты строит `MapService` при старте сервера.
+
+### Босс, арена и прокачка
+
+- `BossService` строит Разлом Тёмного измерения и раз в несколько минут выпускает Дормамму. Модель описана в `DormammuModel` (превью: `lune run tools/export_boss.luau head`). Урон от NPC идёт через `Damage.fromNpc`, а для больших целей есть атрибуты `HitRadius` и `MaxHitDamage`.
+- `ArenaService` ведёт раунды на летающей арене. Игроки там помечены атрибутом `Zone = "Arena"`, и `Damage` не даёт бить через границу зон.
+- Опыт начисляется только через `ProgressionService:AddXp`. Подписаться на урон и убийства можно через `Damage.onDamaged` / `Damage.onKilled`.
 
 ### Как добавить героя
 
