@@ -128,6 +128,29 @@ local function shakeCamera(strength: number, duration: number)
 	end)
 end
 
+-- Короткая вспышка-подсветка персонажа, по которому попали.
+local flashing: { [Instance]: Highlight } = setmetatable({}, { __mode = "k" }) :: any
+
+local function flashModel(victim: Instance?, color: Color3)
+	if not victim or not victim:IsA("Model") then
+		return
+	end
+	local highlight = flashing[victim]
+	if not highlight then
+		local created = Instance.new("Highlight")
+		created.DepthMode = Enum.HighlightDepthMode.Occluded
+		created.OutlineTransparency = 1
+		created.Parent = victim
+		flashing[victim] = created
+		highlight = created
+	end
+	local h = highlight :: Highlight
+	h.FillColor = Color3.new(1, 1, 1):Lerp(color, 0.3)
+	h.FillTransparency = 0.25
+	h.Enabled = true
+	TweenService:Create(h, TweenInfo.new(0.18), { FillTransparency = 1 }):Play()
+end
+
 local function onHit(
 	position: Vector3,
 	amount: number,
@@ -138,6 +161,7 @@ local function onHit(
 )
 	local big = amount >= 30 or killed
 	damageNumber(position, amount, color, big)
+	flashModel(victim, color)
 
 	if attackerId == player.UserId then
 		showHitmarker(killed)

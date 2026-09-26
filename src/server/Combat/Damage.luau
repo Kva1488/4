@@ -14,9 +14,11 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local DataService = require(script.Parent.Parent.Services.DataService)
 local Status = require(script.Parent.Status)
+local Fx = require(script.Parent.Fx)
 
 -- Сколько урона нужно нанести, чтобы полностью зарядить ульту.
 local ULT_DAMAGE_TO_CHARGE = 350
+local PARRY_WINDOW = 0.3
 
 export type Target = {
 	model: Model,
@@ -157,6 +159,16 @@ local function onKill(attacker: Player, victim: Humanoid, source: string?, color
 		)
 		screenFxEvent:FireClient(attacker, "HeroUnlocked", Vector3.zero, hero.id)
 	end
+	-- Эффект гибели: вспышка и облако искр цвета убившей способности.
+	local model = victim.Parent
+	local root = model and model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		local tint = color or Color3.new(1, 1, 1)
+		Fx.sphere(root.Position, tint, 2, 10, 0.4)
+		Fx.ring(root.Position - Vector3.new(0, 2.5, 0), tint, 8, 0.5)
+		Fx.burst(root.Position, tint, 40, 35, "Spark")
+		Fx.flash(root.Position, tint, 20, 0.5)
+	end
 	killfeedEvent:FireAllClients(
 		attacker.DisplayName,
 		displayName(victim),
@@ -179,7 +191,32 @@ function Damage.deal(attacker: Player, humanoid: Humanoid, amount: number, optio
 	end
 	local opts: DamageOptions = options or {}
 	local before = humanoid.Health
-	-- Щит цели (уклонение, вращение молота) снижает урон. Щелчок его пробивает.
+	-- Парирование: удар пришёл в первые 0.3 с блока — урон отменён, атакующий оглушён.
+	local blockStart = humanoid:GetAttribute("BlockStart")
+	if
+		not opts.ignoreShield
+		and humanoid:GetAttribute("Blocking")
+		and typeof(blockStart) == "number"
+		and os.clock() - blockStart <= PARRY_WINDOW
+	then
+		local attackerCharacter = attacker.Character
+		local attackerHumanoid = attackerCharacter and attackerCharacter:FindFirstChildOfClass("Humanoid")
+		if attackerHumanoid and attackerHumanoid ~= humanoid then
+			Status.apply(attackerHumanoid, "Stun", 1.2)
+		end
+		local defender = Players:GetPlayerFromCharacter(humanoid.Parent)
+		if defender then
+			notifyEvent:FireClient(
+				defender,
+				"🛡️ ПАРИРОВАНИЕ! Атакующий оглушён",
+				Color3.fromRGB(255, 240, 150)
+			)
+		end
+		notifyEvent:FireClient(attacker, "Тебя парировали!", Color3.fromRGB(255, 120, 120))
+		humanoid:SetAttribute("BlockStart", 0) -- одно парирование на блок
+		return
+	end
+	-- Щит цели (блок, уклонение, вращение молота) снижает урон. Щелчок его пробивает.
 	if not opts.ignoreShield then
 		amount *= Status.damageMultiplier(humanoid)
 		if amount <= 0 then

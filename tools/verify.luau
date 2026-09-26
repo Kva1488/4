@@ -65,6 +65,8 @@ local expected = {
 	["ServerScriptService.Server.Combat.Sentries"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Heroes.Thor"] = "ModuleScript",
 	["ServerScriptService.Server.Combat.Heroes.Common"] = "ModuleScript",
+	["ServerScriptService.Server.Services.BlockService"] = "ModuleScript",
+	["StarterPlayer.StarterPlayerScripts.Client.Controllers.BlockController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client.Controllers.DoubleJumpController"] = "ModuleScript",
 	["StarterPlayer.StarterPlayerScripts.Client"] = "LocalScript",
 	["StarterPlayer.StarterPlayerScripts.Client.PlayerState"] = "ModuleScript",
@@ -150,6 +152,11 @@ for _, hero in Heroes.List do
 		hasE = hasE or a.keyLabel == "E"
 	end
 	check(hasDodge and hasE, `{hero.id} has dodge (Q) and a new E ability`)
+	local keys = {}
+	for _, a in list do
+		keys[a.keyLabel] = true
+	end
+	check(keys.R and keys.T and keys.Y, `{hero.id} has R, T and Y abilities`)
 	local count = #list
 	check(count >= 6, `{hero.id} has {count} abilities`)
 end

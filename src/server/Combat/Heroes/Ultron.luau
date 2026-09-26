@@ -229,4 +229,68 @@ function Handlers.Hack(ctx)
 	end
 end
 
+-- Вибраниевый таран: рывок, все на пути отлетают.
+function Handlers.VibraniumRam(ctx)
+	local range = Abilities.ById.VibraniumRam.range
+	local origin = ctx.root.Position
+	local direction = Kit.aimFlat(ctx)
+	local targets, finish = Kit.alongLine(ctx, origin, direction, range, 5)
+	for i = 1, 4 do
+		task.delay(i * 0.04, function()
+			Fx.afterimage(ctx.character, STEEL, 0.35)
+		end)
+	end
+	Fx.sound("PunchFinisher", origin, 1, 0.6)
+	ctx.character:PivotTo(CFrame.lookAt(finish, finish + direction))
+	Fx.burst(finish, STEEL, 25, 30, "Spark")
+	for _, target in targets do
+		hit(ctx, target, 24)
+		Damage.knockback(target.root, (direction + Vector3.new(0, 0.4, 0)).Unit * 90)
+	end
+end
+
+-- Ракетный залп: шесть ракет падают на врагов в зоне прицела.
+function Handlers.MissileBarrage(ctx)
+	local zone = 14
+	local targets = Damage.inRadius(ctx.target, zone, ctx.character)
+	Fx.sound("Wave", ctx.root.Position, 0.8, 1.3)
+	for i = 1, 6 do
+		task.delay(i * 0.12, function()
+			local target = targets[((i - 1) % math.max(#targets, 1)) + 1]
+			local impact = if target
+				then target.root.Position
+				else ctx.target + Vector3.new(math.random(-zone, zone), 0, math.random(-zone, zone))
+			local launch = ctx.root.Position + Vector3.new(0, 3, 0)
+			Fx.beam(launch, impact + Vector3.new(0, 25, 0), RED, 0.4, 0.3)
+			Fx.beam(impact + Vector3.new(0, 25, 0), impact, RED, 0.4, 0.2)
+			task.wait(0.2)
+			Fx.sphere(impact, Color3.fromRGB(255, 140, 60), 1, 8, 0.35)
+			Fx.burst(impact, Color3.fromRGB(255, 140, 60), 20, 30, "Fire")
+			for _, victim in Damage.inRadius(impact, 5, ctx.character) do
+				hit(ctx, victim, 12)
+			end
+		end)
+	end
+end
+
+-- Магнитный захват: притянуть всех рядом и оглушить.
+function Handlers.MagneticPull(ctx)
+	local radius = Abilities.ById.MagneticPull.range
+	local center = ctx.root.Position
+	Fx.sound("Magic", center, 1, 0.5)
+	Fx.sphere(center, color("MagneticPull"), radius * 2, 2, 0.5)
+	for _, target in Damage.inRadius(center, radius, ctx.character) do
+		Fx.lightning(center, target.root.Position, RED, 8, 0.4)
+		local pull = (center - target.root.Position) * Vector3.new(1, 0, 1)
+		if pull.Magnitude > 3 then
+			Damage.knockback(
+				target.root,
+				pull.Unit * math.min(pull.Magnitude * 3.5, 90) + Vector3.new(0, 15, 0),
+				0.25
+			)
+		end
+		Status.apply(target.humanoid, "Stun", 1)
+	end
+end
+
 return { Handlers = Handlers }

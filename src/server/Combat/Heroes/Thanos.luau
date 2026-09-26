@@ -335,6 +335,87 @@ function Handlers.DoubleBlade(ctx)
 	end
 end
 
+-- Ближайший враг в секторе перед героем.
+local function nearestInFront(ctx: Context, range: number, angle: number): Damage.Target?
+	local targets = Kit.inCone(ctx, range, angle)
+	table.sort(targets, function(a, b)
+		return (a.root.Position - ctx.root.Position).Magnitude
+			< (b.root.Position - ctx.root.Position).Magnitude
+	end)
+	return targets[1]
+end
+
+-- Хватка Титана: поднять врага перед собой и швырнуть о землю.
+function Handlers.TitanGrip(ctx)
+	local c = color("TitanGrip")
+	local target = nearestInFront(ctx, Abilities.ById.TitanGrip.range, 45)
+	if not target then
+		Fx.slash(ctx.root.CFrame, c, 6)
+		return
+	end
+	Status.apply(target.humanoid, "Stun", 1.4)
+	local hold = ctx.root.CFrame * CFrame.new(0, 3.5, -3.5)
+	target.model:PivotTo(hold)
+	Fx.burst(hold.Position, c, 20, 15)
+	Fx.sound("Magic", hold.Position, 0.8, 0.6)
+	task.wait(0.7)
+	if target.humanoid.Health <= 0 or ctx.humanoid.Health <= 0 then
+		return
+	end
+	local ground = ctx.root.Position + Kit.aimFlat(ctx) * 4
+	target.model:PivotTo(CFrame.new(ground + Vector3.new(0, 2, 0)))
+	Fx.shockwave(ground - Vector3.new(0, 2.5, 0), c, 10)
+	Fx.burst(ground, Color3.fromRGB(120, 100, 90), 25, 25, "Smoke")
+	Fx.sound("PunchFinisher", ground, 1, 0.7)
+	hit(ctx, target, 30)
+end
+
+-- Апперкот: рывок вперёд и подброс врага.
+function Handlers.HulkUppercut(ctx)
+	local c = color("HulkUppercut")
+	local direction = Kit.aimFlat(ctx)
+	Fx.afterimage(ctx.character, c, 0.4)
+	Damage.knockback(ctx.root, direction * 80, 0.15)
+	task.wait(0.15)
+	local point = ctx.root.Position + direction * 3.5
+	Fx.slash(CFrame.lookAt(point, point + Vector3.new(0, 1, 0)), c, 8)
+	Fx.sound("PunchFinisher", point, 1, 0.8)
+	for _, target in Damage.inRadius(point, 5, ctx.character) do
+		hit(ctx, target, 28)
+		Damage.knockback(target.root, Vector3.new(0, 110, 0) + direction * 20, 0.25)
+		Fx.burst(target.root.Position, c, 25, 35)
+	end
+end
+
+-- Поглощение: полторы секунды неуязвимости, затем взрыв из поглощённого урона.
+function Handlers.Absorb(ctx)
+	local c = color("Absorb")
+	local radius = Abilities.ById.Absorb.range
+	local startHealth = ctx.humanoid.Health
+	Status.shield(ctx.humanoid, 1.5, 1)
+	local bubble = Fx.sphere(ctx.root.Position, c, 8, 9, 1.5)
+	bubble.Transparency = 0.7
+	Fx.sound("Magic", ctx.root.Position, 0.9, 0.5)
+	-- Считаем, сколько ударов "впиталось": по числу врагов рядом и времени.
+	local absorbed = 0
+	for _ = 1, 6 do
+		task.wait(0.25)
+		absorbed += #Damage.inRadius(ctx.root.Position, radius, ctx.character) * 3
+	end
+	if ctx.humanoid.Health <= 0 then
+		return
+	end
+	local power = 20 + math.min(absorbed, 40) + math.max(0, startHealth - ctx.humanoid.Health)
+	Fx.shockwave(ctx.root.Position - Vector3.new(0, 2.5, 0), c, radius)
+	Fx.sphere(ctx.root.Position, c, 3, radius * 1.6, 0.5)
+	Fx.burst(ctx.root.Position, c, 70, 60)
+	Fx.flash(ctx.root.Position, c, 40, 0.5)
+	for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+		hit(ctx, target, power)
+		Damage.pushAway(target, ctx.root.Position, 80, 30)
+	end
+end
+
 return {
 	Handlers = Handlers,
 	rewind = rewind,

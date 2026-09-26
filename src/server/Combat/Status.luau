@@ -87,6 +87,20 @@ function Status.isStunned(humanoid: Humanoid): boolean
 	return list ~= nil and isActive(list.Stun)
 end
 
+-- Досрочно снять эффект (например, замедление блока, когда блок отпущен).
+function Status.clear(humanoid: Humanoid, kind: Kind)
+	local list = effects[humanoid]
+	if list then
+		list[kind] = nil
+		recompute(humanoid)
+	end
+end
+
+-- Снять щит.
+function Status.clearShield(humanoid: Humanoid)
+	humanoid:SetAttribute("ShieldUntil", 0)
+end
+
 -- Можно ли сейчас использовать способности.
 function Status.canCast(humanoid: Humanoid): boolean
 	local list = effects[humanoid]

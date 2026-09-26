@@ -194,4 +194,61 @@ function Handlers.SpearThrow(ctx)
 	}, ctx.root, spear)
 end
 
+-- Вращение копья: 4 удара вокруг.
+function Handlers.SpearVortex(ctx)
+	local radius = Abilities.ById.SpearVortex.range
+	local gold = color("SpearVortex")
+	for spin = 1, 4 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		for i = 0, 2 do
+			Fx.slash(
+				ctx.root.CFrame * CFrame.Angles(0, spin * 1.3 + i * 2.1, 0),
+				Items.Stones[(spin + i) % 6 + 1].color,
+				9,
+				i % 2 == 0
+			)
+		end
+		Fx.ring(ctx.root.Position - Vector3.new(0, 2, 0), gold, radius, 0.3)
+		for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+			hit(ctx, target, 9, gold)
+		end
+		task.wait(0.22)
+	end
+end
+
+-- Переписать реальность: кубы, урон и замедление по кругу.
+function Handlers.RewriteReality(ctx)
+	local radius = Abilities.ById.RewriteReality.range
+	local c = color("RewriteReality")
+	Fx.sound("Magic", ctx.root.Position, 1, 0.6)
+	Fx.sphere(ctx.root.Position, c, 3, radius * 2, 0.5)
+	Fx.burst(ctx.root.Position, c, 60, 40, "Fire")
+	for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+		hit(ctx, target, 25)
+		Status.apply(target.humanoid, "Slow", 3, 0.4)
+		Fx.cubify(target.model, c, 2)
+	end
+end
+
+-- Разрез Разума: широкая жёлтая волна перед собой.
+function Handlers.MindCleave(ctx)
+	local range = Abilities.ById.MindCleave.range
+	local c = color("MindCleave")
+	local forward = Kit.aimFlat(ctx)
+	local origin = CFrame.lookAt(ctx.root.Position, ctx.root.Position + forward)
+	Fx.sound("Beam", ctx.root.Position, 1, 0.6)
+	for step = 1, 5 do
+		task.delay(step * 0.04, function()
+			Fx.slash(origin * CFrame.new(0, 0, -step * range / 6), c, 10 + step * 2, false)
+		end)
+	end
+	Fx.flash(ctx.root.Position, c, 30, 0.4)
+	for _, target in Kit.inCone(ctx, range, 35) do
+		hit(ctx, target, 45)
+		Fx.burst(target.root.Position, c, 25, 30, "Spark")
+	end
+end
+
 return { Handlers = Handlers }

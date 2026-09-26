@@ -545,4 +545,144 @@ function Handlers.Tempest(ctx)
 	end
 end
 
+---------------------------------------------------------------- НОВЫЕ СПОСОБНОСТИ (R, T, Y)
+
+-- Цепная молния: перескакивает между врагами, начиная с ближайшего к прицелу.
+function Handlers.ChainLightning(ctx)
+	local candidates = Damage.inRadius(ctx.target, 30, ctx.character)
+	table.sort(candidates, function(a, b)
+		return (a.root.Position - ctx.target).Magnitude < (b.root.Position - ctx.target).Magnitude
+	end)
+	local previous = ctx.root.Position + Vector3.new(0, 1.5, 0)
+	Fx.sound("Beam", previous, 0.9, 0.9)
+	for i = 1, math.min(5, #candidates) do
+		local target = candidates[i]
+		Fx.lightning(previous, target.root.Position, THUNDER, 8, 0.35)
+		Fx.lightning(previous, target.root.Position, WHITE, 8, 0.2)
+		hit(ctx, target, 20)
+		previous = target.root.Position
+		task.wait(0.06)
+	end
+end
+
+function Handlers.SkyfallStrike(ctx)
+	leap(ctx, ctx.target, 40, 16)
+end
+
+-- Клич Асгарда: ускорение себе и оглушение врагов рядом.
+function Handlers.BattleCry(ctx)
+	local radius = Abilities.ById.BattleCry.range
+	Status.apply(ctx.humanoid, "Haste", 5, 1.4)
+	Fx.shockwave(ctx.root.Position - Vector3.new(0, 2.5, 0), THUNDER, radius)
+	Fx.lightningStrike(ctx.root.Position - Vector3.new(0, 3, 0), THUNDER, 40)
+	Fx.sound("Wave", ctx.root.Position, 1, 1)
+	Kit.notify:FireClient(
+		ctx.player,
+		"«За Асгард!» ⚡ Ускорение на 5 секунд",
+		THUNDER
+	)
+	for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+		Status.apply(target.humanoid, "Stun", 1)
+	end
+end
+
+-- Полёт за топором: Громсекира летит, Тор перемещается за ней.
+function Handlers.AxeRide(ctx)
+	local range = Abilities.ById.AxeRide.range
+	local origin = ctx.root.Position
+	local direction = Kit.aimFlat(ctx)
+	local targets, finish = Kit.alongLine(ctx, origin + Vector3.new(0, 1, 0), direction, range, 5)
+	Fx.beam(origin, finish, THUNDER, 1.2, 0.4)
+	Fx.lightning(origin, finish, THUNDER, 12, 0.35)
+	for i = 1, 5 do
+		task.delay(i * 0.05, function()
+			Fx.afterimage(ctx.character, THUNDER, 0.3)
+		end)
+	end
+	task.wait(0.15)
+	ctx.character:PivotTo(CFrame.lookAt(finish, finish + direction))
+	Fx.lightningStrike(finish - Vector3.new(0, 1, 0), THUNDER, 40)
+	for _, target in targets do
+		hit(ctx, target, 26)
+	end
+end
+
+-- Рассечение Биврёстом: радужная волна конусом.
+function Handlers.BifrostSlash(ctx)
+	local range = Abilities.ById.BifrostSlash.range
+	local origin = CFrame.lookAt(ctx.root.Position, ctx.root.Position + Kit.aimFlat(ctx))
+	local rainbow = {
+		Color3.fromRGB(255, 90, 90),
+		Color3.fromRGB(255, 190, 80),
+		Color3.fromRGB(120, 255, 140),
+		Color3.fromRGB(90, 180, 255),
+		Color3.fromRGB(200, 120, 255),
+	}
+	for i, tint in rainbow do
+		task.delay(i * 0.04, function()
+			Fx.slash(origin * CFrame.new(0, 0, -i * range / 7), tint, 8 + i * 2, i % 2 == 0)
+		end)
+	end
+	Fx.sound("Beam", ctx.root.Position, 1, 1.2)
+	for _, target in Kit.inCone(ctx, range, 40) do
+		hit(ctx, target, 30, BIFROST)
+	end
+end
+
+function Handlers.KingsFury(ctx)
+	awaken(ctx, 6)
+end
+
+-- Молот и топор: Мьёльнир бьёт в точку, следом падает Громсекира.
+function Handlers.HammerAndAxe(ctx)
+	local point = ctx.target
+	Fx.beam(ctx.root.Position + Vector3.new(0, 1, 0), point, STEEL, 0.6, 0.3)
+	Fx.shockwave(point, THUNDER, 8)
+	for _, target in Damage.inRadius(point, 8, ctx.character) do
+		hit(ctx, target, 20)
+		Status.apply(target.humanoid, "Stun", 0.8)
+	end
+	task.wait(0.5)
+	strike(ctx, point, 30, 10)
+end
+
+-- Шторм двух миров: шесть молний по врагам вокруг.
+function Handlers.TwoWorldsStorm(ctx)
+	local radius = Abilities.ById.TwoWorldsStorm.range
+	for i = 1, 6 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		local targets = Damage.inRadius(ctx.root.Position, radius, ctx.character)
+		local target = targets[math.random(1, math.max(#targets, 1))]
+		local point = if target
+			then target.root.Position
+			else ctx.root.Position + Vector3.new(
+				math.random(-radius, radius),
+				-2,
+				math.random(-radius, radius)
+			)
+		strike(ctx, point, 16, 6)
+		task.wait(if i % 2 == 0 then 0.35 else 0.2)
+	end
+end
+
+-- Двойное вращение: щит и удары вокруг.
+function Handlers.DualSpin(ctx)
+	local radius = Abilities.ById.DualSpin.range
+	Status.shield(ctx.humanoid, 2, 0.5)
+	for tick = 1, 4 do
+		if ctx.humanoid.Health <= 0 then
+			return
+		end
+		Fx.ring(ctx.root.Position, THUNDER, radius, 0.35)
+		Fx.slash(ctx.root.CFrame * CFrame.Angles(0, tick * 1.6, 0), STEEL, 7, false)
+		Fx.slash(ctx.root.CFrame * CFrame.Angles(0, tick * 1.6 + math.pi, 0), THUNDER, 7, true)
+		for _, target in Damage.inRadius(ctx.root.Position, radius, ctx.character) do
+			hit(ctx, target, 9)
+		end
+		task.wait(0.5)
+	end
+end
+
 return { Handlers = Handlers }

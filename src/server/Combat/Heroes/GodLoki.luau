@@ -263,4 +263,80 @@ function Handlers.Prune(ctx)
 	end
 end
 
+-- Нити судьбы: связать до 4 врагов в зоне и замедлить их.
+function Handlers.FateThreads(ctx)
+	local targets = Damage.inRadius(ctx.target, 16, ctx.character)
+	Fx.clock(ctx.target, GREEN, 8, 1)
+	Fx.sound("Magic", ctx.target, 0.8, 1.2)
+	local previous = ctx.root.Position + Vector3.new(0, 1, 0)
+	for i = 1, math.min(4, #targets) do
+		local target = targets[i]
+		Fx.branch(Fx.arc(previous, target.root.Position, 3, 6), GREEN, 0.35, 2.5, 0.2)
+		previous = target.root.Position
+		hit(ctx, target, 18)
+		Status.apply(target.humanoid, "Slow", 3, 0.4)
+	end
+end
+
+-- Цитадель: колонна, которая лечит Локи рядом с ней и бьёт врагов вокруг.
+function Handlers.Citadel(ctx)
+	local radius = Abilities.ById.Citadel.range
+	local base = ctx.root.Position - Vector3.new(0, 3, 0)
+	Fx.pillar(base, GREEN, 30, 5)
+	Fx.branch(Fx.arc(base, base + Vector3.new(0, 14, 0), 0.5, 5), DEEP, 1.4, 5, 0.4)
+	Fx.sound("Magic", base, 1, 0.4)
+	for _ = 1, 5 do
+		Fx.ring(base + Vector3.new(0, 0.3, 0), GREEN, radius, 0.8)
+		if (ctx.root.Position - base).Magnitude <= radius + 3 then
+			Damage.heal(ctx.humanoid, 8)
+			Fx.burst(ctx.root.Position, Color3.fromRGB(150, 255, 170), 8, 8)
+		end
+		for _, target in Damage.inRadius(base, radius, ctx.character) do
+			hit(ctx, target, 6)
+		end
+		task.wait(1)
+	end
+end
+
+-- Варианты: три Локи из других ветвей появляются и стреляют по врагам.
+function Handlers.Variants(ctx)
+	local range = Abilities.ById.Variants.range
+	local tints = { Color3.fromRGB(230, 200, 90), Color3.fromRGB(70, 200, 90), Color3.fromRGB(150, 255, 170) }
+	Fx.sound("Magic", ctx.root.Position, 1, 0.8)
+	for i, tint in tints do
+		local variant = Kit.cloneCharacter(ctx.character)
+		if not variant then
+			continue
+		end
+		local angle = (i / #tints) * math.pi * 2
+		local spot = ctx.root.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
+		variant:PivotTo(CFrame.new(spot))
+		for _, part in variant:GetDescendants() do
+			if part:IsA("BasePart") and part.Transparency < 1 then
+				part.Color = part.Color:Lerp(tint, 0.45)
+			end
+		end
+		Fx.door(spot - Vector3.new(0, 3, 0), Vector3.new(0, 0, -1), 0.8)
+		task.spawn(function()
+			for _ = 1, 4 do
+				task.wait(1)
+				local targets = Damage.inRadius(spot, range, ctx.character)
+				local target = targets[math.random(1, math.max(#targets, 1))]
+				if target then
+					variant:PivotTo(
+						CFrame.lookAt(
+							spot,
+							Vector3.new(target.root.Position.X, spot.Y, target.root.Position.Z)
+						)
+					)
+					Fx.lightning(spot + Vector3.new(0, 1, 0), target.root.Position, tint, 8, 0.25)
+					hit(ctx, target, 8, tint)
+				end
+			end
+			Fx.burst(spot, tint, 25, 15)
+			variant:Destroy()
+		end)
+	end
+end
+
 return { Handlers = Handlers }

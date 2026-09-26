@@ -260,4 +260,79 @@ function Handlers.SnakeForm(ctx)
 	end)
 end
 
+-- Астральная проекция: двойник в точке прицела взрывается через 2 секунды.
+function Handlers.Projection(ctx)
+	local decoy = Kit.cloneCharacter(ctx.character)
+	local spot = ctx.target + Vector3.new(0, 3, 0)
+	if decoy then
+		decoy:PivotTo(CFrame.lookAt(spot, spot - Kit.aimFlat(ctx)))
+		for _, part in decoy:GetDescendants() do
+			if part:IsA("BasePart") and part.Transparency < 1 then
+				part.Transparency = math.max(part.Transparency, 0.35)
+			end
+		end
+	end
+	Fx.burst(spot, GREEN, 30, 15)
+	Fx.sound("Magic", spot, 0.8, 1.4)
+	task.wait(2)
+	if decoy then
+		decoy:Destroy()
+	end
+	Fx.sphere(spot, GREEN, 2, 16, 0.4)
+	Fx.shockwave(spot - Vector3.new(0, 2.5, 0), GREEN, 8)
+	Fx.burst(spot, GREEN, 50, 40)
+	Fx.flash(spot, GREEN, 25)
+	for _, target in Damage.inRadius(spot, 8, ctx.character) do
+		hit(ctx, target, 30)
+	end
+end
+
+-- Веер из пяти кинжалов.
+function Handlers.DaggerFan(ctx)
+	Kit.reveal(ctx.character)
+	local origin = ctx.root.Position + Vector3.new(0, 1, 0)
+	local forward = Kit.aimFlat(ctx)
+	Fx.sound("Punch", origin, 0.6, 1.7)
+	for i = -2, 2 do
+		local direction = (CFrame.Angles(0, math.rad(i * 9), 0) * forward).Unit
+		local knife = Instance.new("Part")
+		knife.Size = Vector3.new(0.18, 0.18, 1.3)
+		knife.Material = Enum.Material.Neon
+		knife.Color = STEEL
+		Projectile.fire({
+			origin = origin,
+			direction = direction,
+			speed = 130,
+			range = Abilities.ById.DaggerFan.range,
+			radius = 2.2,
+			owner = ctx.character,
+			visual = knife,
+			onHit = function(target, position)
+				hit(ctx, target, 12)
+				Fx.burst(position, GREEN, 8, 15)
+			end,
+		})
+	end
+end
+
+-- Прикосновение ётуна: заморозка ближайшего врага.
+function Handlers.JotunTouch(ctx)
+	Kit.reveal(ctx.character)
+	local frost = color("JotunTouch")
+	local targets = Kit.inCone(ctx, Abilities.ById.JotunTouch.range, 50)
+	table.sort(targets, function(a, b)
+		return (a.root.Position - ctx.root.Position).Magnitude
+			< (b.root.Position - ctx.root.Position).Magnitude
+	end)
+	Fx.burst(ctx.root.Position, frost, 20, 10, "Smoke")
+	Fx.sound("Magic", ctx.root.Position, 0.8, 1.8)
+	local target = targets[1]
+	if target then
+		hit(ctx, target, 22)
+		Status.apply(target.humanoid, "Stun", 2)
+		Fx.crystal(target.root.Position, frost, 2)
+		Fx.burst(target.root.Position, frost, 30, 15, "Smoke")
+	end
+end
+
 return { Handlers = Handlers }
