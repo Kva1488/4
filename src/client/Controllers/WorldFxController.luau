@@ -4,7 +4,7 @@
 -- • радужные Перчатки (атрибут Rainbow у модели InfinityGauntlet) переливаются цветами,
 --   а собранные камни во всех перчатках мягко "дышат";
 -- • всплески частиц по событию "Burst" от сервера (удары, взрывы, подбор камней);
--- • пять Камней Бесконечности кружат вокруг Альтрона бесконечности (Разум — у него во лбу).
+-- • плащи героев развеваются при движении, а камни, глаза и свечение на костюмах "дышат".
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
@@ -12,7 +12,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Items = require(ReplicatedStorage.Shared.Items)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shop = require(ReplicatedStorage.Shared.Shop)
 
@@ -22,6 +21,7 @@ local TEXTURES = {
 	Sparkle = "rbxasset://textures/particles/sparkles_main.dds",
 	Smoke = "rbxasset://textures/particles/smoke_main.dds",
 	Fire = "rbxasset://textures/particles/fire_main.dds",
+	Spark = "rbxasset://textures/particles/fire_sparks_main.dds",
 }
 
 local WorldFxController = {}
@@ -74,78 +74,63 @@ local function burst(position: Vector3, color: Color3, count: number, speed: num
 	emitter.Lifetime = NumberRange.new(0.4, 0.9)
 	emitter.Speed = NumberRange.new(speed * 0.5, speed)
 	emitter.SpreadAngle = Vector2.new(180, 180)
-	emitter.Drag = 4
+	emitter.Drag = if texture == "Spark" then 1.5 else 4
+	if texture == "Spark" then
+		emitter.Acceleration = Vector3.new(0, -60, 0)
+		emitter.Size = NumberSequence.new(0.5, 0)
+		emitter.Lifetime = NumberRange.new(0.25, 0.5)
+	end
 	emitter.Rate = 0
 	emitter.Parent = holder
 	emitter:Emit(math.clamp(count, 0, 120))
 	Debris:AddItem(holder, 1.5)
 end
 
--- Орбита камней: для каждого Альтрона бесконечности — пять локальных светящихся камней.
-local orbits: { [Model]: { BasePart } } = {}
-local ORBIT_STONES = {}
-for _, stone in Items.Stones do
-	if stone.id ~= "Mind" then
-		table.insert(ORBIT_STONES, stone)
-	end
-end
+-- Плащи героев развеваются: чем быстрее бежишь или падаешь, тем сильнее отлетает назад.
+-- Weld.C0 меняем локально — сервер задаёт только исходное положение (атрибуты BaseC0 и Pivot).
+local capeAngles: { [Model]: number } = setmetatable({}, { __mode = "k" }) :: any
 
-local function makeOrbit(): { BasePart }
-	local gems: { BasePart } = {}
-	for _, stone in ORBIT_STONES do
-		local gem = Instance.new("Part")
-		gem.Name = stone.id .. "Orbit"
-		gem.Shape = Enum.PartType.Ball
-		gem.Size = Vector3.one * 0.55
-		gem.Material = Enum.Material.Neon
-		gem.Color = stone.color
-		gem.Anchored = true
-		gem.CanCollide = false
-		gem.CanQuery = false
-		gem.CanTouch = false
-		gem.CastShadow = false
-		local light = Instance.new("PointLight")
-		light.Color = stone.color
-		light.Range = 6
-		light.Brightness = 1.5
-		light.Parent = gem
-		gem.Parent = workspace.CurrentCamera
-		table.insert(gems, gem)
+local function animateHero(character: Model, root: BasePart, t: number, dt: number)
+	local cosmetics = character:FindFirstChild("HeroCosmetics")
+	if not cosmetics then
+		return
 	end
-	return gems
-end
+	local velocity = root.CFrame:VectorToObjectSpace(root.AssemblyLinearVelocity)
+	local forward = math.clamp(-velocity.Z / 16, 0, 1)
+	local falling = math.clamp(-velocity.Y / 40, 0, 1)
+	local target = forward * 0.85 + falling * 0.6 + math.sin(t * 2.2 + root.Position.X) * 0.05 + 0.03
+	local angle = capeAngles[character] or 0
+	angle += (target - angle) * math.min(1, dt * 6)
+	capeAngles[character] = angle
 
-local function updateOrbits(t: number)
-	local seen: { [Model]: boolean } = {}
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if
-			character
-			and root
-			and character:GetAttribute("Hero") == "InfinityUltron"
-			and not character:GetAttribute("Invisible")
-		then
-			seen[character] = true
-			local gems = orbits[character]
-			if not gems then
-				gems = makeOrbit()
-				orbits[character] = gems
+	for _, part in cosmetics:GetChildren() do
+		if not part:IsA("BasePart") then
+			continue
+		end
+		if part:GetAttribute("Sway") then
+			local weld = part:FindFirstChildOfClass("Weld")
+			local base = part:GetAttribute("BaseC0")
+			local pivot = part:GetAttribute("Pivot")
+			if weld and typeof(base) == "CFrame" and typeof(pivot) == "CFrame" then
+				-- Поворот вокруг точки у шеи: отрицательный угол по X отводит плащ назад (+Z).
+				weld.C0 = pivot * CFrame.Angles(-angle, 0, 0) * pivot:Inverse() * base
 			end
-			for i, gem in gems do
-				local angle = t * 1.6 + (i / #gems) * math.pi * 2
-				local tilt = math.sin(t * 0.7 + i) * 0.8
-				gem.Position = root.Position
-					+ Vector3.new(math.cos(angle) * 3, 1.2 + tilt, math.sin(angle) * 3)
+		else
+			local role = part:GetAttribute("Role")
+			if role == "gem" or role == "eye" or role == "glow" then
+				-- Камни, глаза и свечение мягко "дышат".
+				part.Transparency = 0.1 + math.sin(t * 3 + part.Position.Y * 2) * 0.1
 			end
 		end
 	end
-	for character, gems in orbits do
-		if not seen[character] then
-			for _, gem in gems do
-				gem:Destroy()
-			end
-			orbits[character] = nil
+end
+
+local function updateHeroes(t: number, dt: number)
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if character and root and not character:GetAttribute("Invisible") then
+			animateHero(character, root, t, dt)
 		end
 	end
 end
@@ -161,7 +146,7 @@ function WorldFxController:Start()
 		spinning[instance :: BasePart] = nil
 	end)
 
-	RunService.RenderStepped:Connect(function()
+	RunService.RenderStepped:Connect(function(dt: number)
 		local t = os.clock()
 		for part, base in spinning do
 			local bob = math.sin(t * 1.5 + base.X * 0.1) * 0.6
@@ -170,7 +155,7 @@ function WorldFxController:Start()
 				* (base - base.Position)
 		end
 
-		updateOrbits(t)
+		updateHeroes(t, dt)
 
 		local rainbow = Shop.skinColor(Shop.SkinById.Rainbow, t)
 		local darkRainbow = rainbow:Lerp(Color3.new(0, 0, 0), 0.38)

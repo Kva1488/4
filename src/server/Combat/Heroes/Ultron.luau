@@ -68,6 +68,7 @@ function Handlers.Repulsor(ctx)
 
 	Fx.sound("Beam", origin, 0.6, 0.9)
 	Fx.beam(origin, finish, RED, 1, 0.3)
+	Fx.lightning(origin, finish, Color3.fromRGB(255, 160, 140), 8, 0.2)
 	Fx.sphere(origin, RED, 2.2, 0.5, 0.2)
 	Fx.sphere(finish, RED, 1, 5, 0.3)
 	Fx.burst(finish, RED, 18, 28)
@@ -96,11 +97,14 @@ function Handlers.AntiGravDash(ctx)
 	Fx.sound("Wave", ctx.root.Position, 0.6, 1.5)
 	Fx.ring(ctx.root.Position - Vector3.new(0, 2.5, 0), RED, 6, 0.3)
 	Damage.knockback(ctx.root, velocity, 0.3)
-	-- Реактивный след.
+	-- Реактивный след и серия послеобразов.
 	for i = 1, 6 do
 		task.delay(i * 0.05, function()
 			if ctx.root.Parent then
 				Fx.burst(ctx.root.Position, RED, 6, 4, "Fire")
+				if i % 2 == 0 then
+					Fx.afterimage(ctx.character, RED, 0.35)
+				end
 			end
 		end)
 	end
@@ -136,8 +140,9 @@ function Handlers.ConsciousnessTransfer(ctx)
 	local body = Sentries.take(ctx.player, ctx.target)
 	Fx.sound("Teleport", from, 0.8, 0.7)
 	Fx.burst(from, RED, 25, 15)
+	Fx.afterimage(ctx.character, RED, 0.6)
 	if body then
-		Fx.beam(from, body, RED, 0.5, 0.4)
+		Fx.lightning(from, body, RED, 10, 0.4)
 		ctx.character:PivotTo(CFrame.lookAt(body, body + Kit.aimFlat(ctx)))
 		Damage.heal(ctx.humanoid, 25)
 		Fx.sphere(body, RED, 1, 7, 0.4)

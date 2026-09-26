@@ -155,6 +155,7 @@ function Handlers.TemPadDoor(ctx)
 	if ctx.humanoid.Health <= 0 then
 		return
 	end
+	Fx.afterimage(ctx.character, Color3.fromRGB(255, 170, 70), 0.6)
 	Kit.teleport(ctx, ctx.target)
 	Fx.door(ctx.target + Vector3.new(0, 2, 0) - look * 1.5, look, 1.2)
 	Fx.burst(ctx.target + Vector3.new(0, 3, 0), Color3.fromRGB(255, 170, 70), 30, 20)

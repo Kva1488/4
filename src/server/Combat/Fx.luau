@@ -389,4 +389,44 @@ function Fx.clock(position: Vector3, color: Color3, radius: number, duration: nu
 	end
 end
 
+-- Послеобраз: светящийся силуэт персонажа, который тает на месте (телепорты, рывки, перемотка).
+function Fx.afterimage(character: Model, color: Color3, duration: number)
+	for _, source in character:GetDescendants() do
+		if source:IsA("BasePart") and source.Name ~= "HumanoidRootPart" and source.Transparency < 0.9 then
+			local ghost = basePart(Enum.PartType.Block, color)
+			if source:IsA("Part") then
+				ghost.Shape = source.Shape
+			end
+			ghost.Size = source.Size
+			ghost.CFrame = source.CFrame
+			ghost.Transparency = 0.55
+			ghost.Parent = Fx.Folder
+			tween(ghost, duration, { Transparency = 1, Size = source.Size * 1.08 })
+			Debris:AddItem(ghost, duration + 0.1)
+		end
+	end
+end
+
+-- Ломаная молния между точками: для энергетических лучей и контроля разума.
+function Fx.lightning(from: Vector3, to: Vector3, color: Color3, segments: number?, duration: number?)
+	local count = segments or 8
+	local life = duration or 0.25
+	local jitter = math.min((to - from).Magnitude * 0.06, 2.5)
+	local previous = from
+	for i = 1, count do
+		local point = from:Lerp(to, i / count)
+		if i < count then
+			point += Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * jitter * 2
+		end
+		local length = (point - previous).Magnitude
+		local bolt = basePart(Enum.PartType.Block, color)
+		bolt.Size = Vector3.new(0.18, 0.18, length)
+		bolt.CFrame = CFrame.lookAt(previous, point) * CFrame.new(0, 0, -length / 2)
+		bolt.Parent = Fx.Folder
+		tween(bolt, life, { Transparency = 1, Size = Vector3.new(0.02, 0.02, length) })
+		Debris:AddItem(bolt, life + 0.1)
+		previous = point
+	end
+end
+
 return Fx

@@ -7,7 +7,14 @@ local roblox = require("@lune/roblox")
 local serde = require("@lune/serde")
 
 local CFrame, Vector3 = roblox.CFrame, roblox.Vector3
-local env = { CFrame = CFrame, Vector3 = Vector3, math = math, table = table }
+local env = {
+	CFrame = CFrame,
+	Vector3 = Vector3,
+	Color3 = roblox.Color3,
+	Enum = roblox.Enum,
+	math = math,
+	table = table,
+}
 local HeroModel = luau.load(fs.readFile("src/shared/HeroModel.luau"), { environment = env })()
 
 -- Центры частей тела манекена R15 относительно UpperTorso.
@@ -19,9 +26,10 @@ local BODY = {
 }
 
 local out = {}
-local function push(name, role, shape, size, cf)
+local function push(name, role, shape, size, cf, color)
 	local c = { cf:GetComponents() }
 	table.insert(out, {
+		color = if color then { color.R, color.G, color.B } else nil,
 		name = name,
 		role = role,
 		shape = shape,
@@ -41,7 +49,7 @@ end
 local outfit = HeroModel.outfit(process.args[1])
 for bodyPart, specs in outfit do
 	for _, spec in specs do
-		push(spec.name, spec.role, spec.shape, spec.size, BODY[bodyPart] * spec.cframe)
+		push(spec.name, spec.role, spec.shape, spec.size, BODY[bodyPart] * spec.cframe, spec.color)
 	end
 end
 print(serde.encode("json", out))

@@ -32,39 +32,59 @@ local SHAPES: { [string]: Enum.PartType } = {
 }
 
 -- Цвет и материал по роли детали.
-local LOOKS: { [string]: { [string]: { color: Color3, material: Enum.Material } } } = {
+type Look = { color: Color3, material: Enum.Material }
+
+local GOLD: Look = { color = Color3.fromRGB(225, 180, 70), material = Enum.Material.Foil }
+local DARK: Look = { color = Color3.fromRGB(38, 33, 30), material = Enum.Material.Leather }
+local STEEL: Look = { color = Color3.fromRGB(215, 225, 232), material = Enum.Material.Metal }
+local TIME_GLOW: Look = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon }
+local RED_GLOW: Look = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon }
+
+-- Цвет и материал каждой роли детали у каждого героя.
+local LOOKS: { [string]: { [string]: Look } } = {
+	Thanos = {
+		plate = { color = Color3.fromRGB(62, 76, 102), material = Enum.Material.Metal },
+		trim = { color = Color3.fromRGB(40, 44, 58), material = Enum.Material.Leather },
+		gold = GOLD,
+		dark = { color = Color3.fromRGB(95, 60, 120), material = Enum.Material.SmoothPlastic },
+	},
 	Loki = {
-		plate = { color = Color3.fromRGB(225, 175, 60), material = Enum.Material.Metal },
+		plate = { color = Color3.fromRGB(225, 175, 60), material = Enum.Material.Foil },
 		trim = { color = Color3.fromRGB(150, 110, 35), material = Enum.Material.Metal },
 		cape = { color = Color3.fromRGB(25, 95, 45), material = Enum.Material.Fabric },
-		lining = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon },
-		steel = { color = Color3.fromRGB(215, 225, 230), material = Enum.Material.Metal },
-		dark = { color = Color3.fromRGB(40, 35, 30), material = Enum.Material.Metal },
-		glow = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon },
+		lining = TIME_GLOW,
+		steel = STEEL,
+		dark = DARK,
+		glow = { color = Color3.fromRGB(120, 255, 160), material = Enum.Material.Neon },
+		gold = GOLD,
 	},
 	GodLoki = {
-		plate = { color = Color3.fromRGB(235, 190, 80), material = Enum.Material.Metal },
+		plate = { color = Color3.fromRGB(235, 190, 80), material = Enum.Material.Foil },
 		trim = { color = Color3.fromRGB(160, 120, 40), material = Enum.Material.Metal },
 		cape = { color = Color3.fromRGB(18, 58, 36), material = Enum.Material.Fabric },
-		lining = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon },
-		steel = { color = Color3.fromRGB(215, 225, 230), material = Enum.Material.Metal },
-		dark = { color = Color3.fromRGB(40, 35, 30), material = Enum.Material.Metal },
-		glow = { color = Color3.fromRGB(110, 255, 150), material = Enum.Material.Neon },
+		lining = TIME_GLOW,
+		steel = STEEL,
+		dark = DARK,
+		glow = TIME_GLOW,
+		gold = GOLD,
 	},
 	Ultron = {
 		plate = { color = Color3.fromRGB(170, 175, 187), material = Enum.Material.DiamondPlate },
 		trim = { color = Color3.fromRGB(105, 108, 118), material = Enum.Material.Metal },
-		steel = { color = Color3.fromRGB(215, 225, 235), material = Enum.Material.Metal },
-		eye = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
-		lining = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
-		gem = { color = Color3.fromRGB(255, 215, 40), material = Enum.Material.Neon },
+		steel = STEEL,
+		eye = RED_GLOW,
+		lining = RED_GLOW,
+		gold = GOLD,
 	},
+	-- «Что, если…?»: титаново-серая броня с матовым золотом и красный плащ.
 	InfinityUltron = {
-		plate = { color = Color3.fromRGB(125, 130, 146), material = Enum.Material.DiamondPlate },
-		trim = { color = Color3.fromRGB(78, 80, 94), material = Enum.Material.Metal },
-		steel = { color = Color3.fromRGB(235, 200, 110), material = Enum.Material.Metal },
-		eye = { color = Color3.fromRGB(255, 45, 40), material = Enum.Material.Neon },
-		lining = { color = Color3.fromRGB(235, 185, 60), material = Enum.Material.Metal },
+		plate = { color = Color3.fromRGB(118, 123, 136), material = Enum.Material.Metal },
+		trim = { color = Color3.fromRGB(78, 81, 94), material = Enum.Material.DiamondPlate },
+		gold = { color = Color3.fromRGB(200, 158, 68), material = Enum.Material.Metal },
+		cape = { color = Color3.fromRGB(165, 22, 32), material = Enum.Material.Fabric },
+		steel = STEEL,
+		dark = { color = Color3.fromRGB(28, 26, 32), material = Enum.Material.Metal },
+		eye = RED_GLOW,
 		gem = { color = Color3.fromRGB(255, 215, 40), material = Enum.Material.Neon },
 	},
 }
@@ -152,7 +172,7 @@ local function setClothingHidden(character: Model, hidden: boolean)
 	end
 end
 
-local function paint(character: Model, names: { string }, color: Color3?)
+local function paint(character: Model, names: { string }, color: Color3?, material: Enum.Material?)
 	for _, name in names do
 		local part = character:FindFirstChild(name)
 		if part and part:IsA("BasePart") then
@@ -162,13 +182,21 @@ local function paint(character: Model, names: { string }, color: Color3?)
 				original = part.Color
 			end
 			part.Color = color or original :: Color3
+			-- Материал: металл для роботов, исходный — при возврате.
+			local originalMaterial = part:GetAttribute("OrigMaterial")
+			if originalMaterial == nil then
+				part:SetAttribute("OrigMaterial", part.Material.Name)
+				originalMaterial = part.Material.Name
+			end
+			part.Material = material or (Enum.Material :: any)[originalMaterial :: string]
 		end
 	end
 end
 
 local function setSkin(character: Model, color: Color3?, robot: boolean?)
-	paint(character, SKIN_PARTS, color)
-	paint(character, ROBOT_PARTS, if robot then color else nil)
+	local metal = if robot then Enum.Material.Metal else nil
+	paint(character, SKIN_PARTS, color, metal)
+	paint(character, ROBOT_PARTS, if robot then color else nil, metal)
 	setClothingHidden(character, robot == true)
 end
 
@@ -231,10 +259,6 @@ function HeroService:Apply(character: Model, heroId: string)
 	if hero and hero.bodyColor then
 		setSkin(character, hero.bodyColor, hero.robot)
 	end
-	if heroId == "Thanos" then
-		return
-	end
-
 	local outfit = HeroModel.outfit(heroId)
 	local looks = LOOKS[heroId]
 	if not outfit or not looks then
@@ -246,13 +270,18 @@ function HeroService:Apply(character: Model, heroId: string)
 		local anchor, offset = mount(character, slot)
 		if anchor then
 			for _, spec: HeroModel.PartSpec in specs do
-				local look = looks[spec.role]
+				local look = looks[spec.role] or GOLD
 				local part = Instance.new("Part")
 				part.Name = spec.name
 				part.Shape = SHAPES[spec.shape]
 				part.Size = spec.size
-				part.Color = look.color
-				part.Material = look.material
+				part.Color = spec.color or look.color
+				part.Material = if spec.color and spec.role == "gem"
+					then Enum.Material.Neon
+					else look.material
+				part.TopSurface = Enum.SurfaceType.Smooth
+				part.BottomSurface = Enum.SurfaceType.Smooth
+				part:SetAttribute("Role", spec.role)
 				part.CanCollide = false
 				part.CanQuery = false
 				part.CanTouch = false
@@ -264,6 +293,12 @@ function HeroService:Apply(character: Model, heroId: string)
 				weld.Part1 = part
 				weld.C0 = offset * spec.cframe
 				weld.Parent = part
+				if spec.sway then
+					-- Плащ: клиенты качают его вокруг точки у шеи (WorldFxController).
+					part:SetAttribute("Sway", true)
+					part:SetAttribute("BaseC0", weld.C0)
+					part:SetAttribute("Pivot", offset * HeroModel.CapePivot)
+				end
 				part.Parent = folder
 			end
 		end

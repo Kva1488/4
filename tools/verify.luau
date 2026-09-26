@@ -218,7 +218,30 @@ for _, id in { "Loki", "GodLoki", "Ultron", "InfinityUltron" } do
 	local outfit = HeroModel.outfit(id)
 	check(outfit ~= nil and #outfit.head >= 10 and #outfit.torso >= 5, `{id} has head and torso outfit`)
 end
-check(HeroModel.outfit("Thanos") == nil, "Thanos uses the gauntlet, not an outfit")
+local thanos = HeroModel.outfit("Thanos")
+check(
+	thanos ~= nil and #thanos.rightHand == 0 and #thanos.torso >= 5,
+	"Thanos armor leaves the right hand to the gauntlet"
+)
+local infinity = HeroModel.outfit("InfinityUltron")
+local chestStones, sways = 0, 0
+for _, spec in infinity.torso do
+	if spec.role == "gem" then
+		chestStones += 1
+	end
+	if spec.sway then
+		sways += 1
+	end
+end
+check(chestStones == 5, `Infinity Ultron has 5 chest stones ({chestStones})`)
+check(sways >= 2, "Infinity Ultron cape sways")
+local spearParts = 0
+for _, spec in infinity.rightHand do
+	if string.find(spec.name, "Blade") then
+		spearParts += 1
+	end
+end
+check(spearParts == 2, "Infinity Ultron spear has two blades")
 
 print(if failures == 0 then "ALL CHECKS PASSED" else `{failures} FAILURES`)
 process.exit(if failures == 0 then 0 else 1)

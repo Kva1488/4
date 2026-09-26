@@ -23,7 +23,7 @@ local strikeIndex: { [Player]: number } = setmetatable({}, { __mode = "k" }) :: 
 
 local Handlers: { [string]: (Context) -> () } = {}
 
--- Удар бесконечности: каждый удар окрашен следующим камнем.
+-- Удар бесконечности: выпады и взмахи двуглавым копьём, каждый окрашен следующим камнем.
 function Handlers.InfinityStrike(ctx)
 	local index = (strikeIndex[ctx.player] or 0) % #Items.Stones + 1
 	strikeIndex[ctx.player] = index
@@ -31,10 +31,23 @@ function Handlers.InfinityStrike(ctx)
 
 	local direction = Kit.aimFlat(ctx)
 	local origin = CFrame.lookAt(ctx.root.Position, ctx.root.Position + direction)
-	local hitPoint = ctx.root.Position + direction * 4
-	Fx.slash(origin, stone.color, 7, index % 2 == 0)
+	local hitPoint = ctx.root.Position + direction * 5
+	local thrust = index % 3 == 0
+	if thrust then
+		-- Выпад: копьё пронзает линию перед собой.
+		Fx.beam(
+			ctx.root.Position + Vector3.new(0, 0.5, 0),
+			ctx.root.Position + direction * 9,
+			stone.color,
+			0.5,
+			0.2
+		)
+		Fx.lightning(ctx.root.Position, ctx.root.Position + direction * 9, stone.color, 6, 0.2)
+	else
+		Fx.slash(origin, stone.color, 8, index % 2 == 0)
+	end
 	Fx.sound("Punch", hitPoint, 0.7, 0.9)
-	for _, target in Damage.inRadius(hitPoint, 5, ctx.character) do
+	for _, target in Damage.inRadius(hitPoint, if thrust then 6 else 5, ctx.character) do
 		hit(ctx, target, 14, stone.color)
 		Fx.burst(target.root.Position, stone.color, 15, 25)
 	end
@@ -49,6 +62,9 @@ function Handlers.MindBlast(ctx)
 	Fx.sound("Beam", origin, 1, 0.8)
 	Fx.beam(origin, finish, c, 3, 0.6)
 	Fx.beam(origin, finish, Color3.new(1, 1, 1), 1.1, 0.45)
+	for _ = 1, 4 do
+		Fx.lightning(origin, finish, c, 14, 0.4)
+	end
 	Fx.flash(origin, c, 26)
 	Fx.burst(finish, c, 40, 35)
 	for _, target in targets do
@@ -62,6 +78,7 @@ function Handlers.MultiversePortal(ctx)
 	local c = color("MultiversePortal")
 	local look = Kit.aimFlat(ctx)
 	Fx.portal(ctx.root.Position, look, c, 4, 0.7)
+	Fx.afterimage(ctx.character, c, 0.6)
 	Fx.sound("Teleport", ctx.root.Position, 0.8, 0.7)
 	Kit.teleport(ctx, ctx.target)
 	Fx.portal(ctx.target + Vector3.new(0, 3, 0), look, c, 4, 0.8)

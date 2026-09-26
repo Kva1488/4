@@ -41,11 +41,14 @@ function Kit.hit(
 	ignoreShield: boolean?
 )
 	local ability = Abilities.ById[ctx.abilityId]
+	local tint = colorOverride or ability.color
 	Damage.deal(ctx.player, target.humanoid, amount * ctx.damageMult, {
 		source = ability.name,
-		color = colorOverride or ability.color,
+		color = tint,
 		ignoreShield = ignoreShield,
 	})
+	-- Искры при каждом попадании.
+	Fx.burst(target.root.Position, tint, 8, 45, "Spark")
 end
 
 -- Горизонтальное направление от персонажа к прицелу.
